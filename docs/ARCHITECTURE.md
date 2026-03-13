@@ -88,7 +88,7 @@ flowchart TD
 | File | Responsibility |
 | --- | --- |
 | `manifest.json` | Extension metadata, permissions (`storage`, `activeTab`), background service worker declaration, content script injection rules, icon declarations |
-| `content_script.js` | Audio graph management, RMS analysis loop, speed control, time-saved accumulation, stats messaging, optional overlay toast, video discovery, settings listener, page lifecycle cleanup |
+| `content_script.js` | Audio graph management, RMS analysis loop, speed control, seek reset, time-saved accumulation, stats messaging, optional overlay toast, video discovery, settings listener, page lifecycle cleanup |
 | `background.js` | Receives `UPDATE_STATS` and `RESET_STATS` messages; persists statistics to `chrome.storage.local` on every stats message; manages toolbar badge text and colour |
 | `popup.html` | Popup markup — toggle, mode indicator, acceleration mode selector (segmented control), five setting controls, reset button, divider, statistics section |
 | `popup.js` | Popup logic — reads/writes `chrome.storage.sync`, applies acceleration mode presets, syncs sliders with number inputs, detects preset modifications, updates mode indicator and statistics via `chrome.storage.local`, sends `RESET_STATS` to background |
@@ -225,27 +225,27 @@ a new transition cancels any in-progress toast.
 
 ### Smooth transition algorithm
 
-Abrupt `playbackRate` changes produce an audible click because the browser's audio renderer
-encounters a discontinuity in the decoded PCM stream. `setSpeedSmooth` eliminates this by
-linearly interpolating `playbackRate` over a fixed ramp duration using `requestAnimationFrame`:
+Changing `video.playbackRate` causes the browser's internal resampler to reset at the Web Audio
+render-quantum boundary (~128 samples, ~2.9 ms at 44100 Hz), producing a PCM discontinuity
+regardless of how gradually the rate is interpolated in JavaScript. `setSpeedSmooth` eliminates
+this by making the rate change while the audio signal is silent:
 
-1. Cancel any in-progress ramp (`cancelAnimationFrame` on `transitionTimer`).
+1. Cancel any in-progress transition (`clearTimeout` on `transitionTimer`).
 2. If the difference between the current rate and the target is already less than 0.01, return
    immediately.
-3. Record `startRate = video.playbackRate` and `startTime = performance.now()`.
-4. Schedule a `requestAnimationFrame` callback (`rampStep`).
-5. Each frame, compute `t = min(elapsed / SPEED_RAMP_DURATION_MS, 1)` and set
-   `video.playbackRate = startRate + (targetRate − startRate) × t`.
-6. When `t` reaches 1 the ramp is complete and no further frame is scheduled.
+3. If the `AudioContext` is not running (cross-origin fallback), assign `playbackRate` directly.
+4. Use `AudioParam.linearRampToValueAtTime` to fade `gainNode.gain` from its current value to 0
+   over `GAIN_FADE_DURATION_S` (20 ms). `AudioParam` scheduling is sample-accurate and processed
+   inside the render quantum — no JavaScript-level discontinuity.
+5. After `GAIN_SETTLE_MS` (25 ms), assign `video.playbackRate = targetRate` and restore gain to
+   1 over another 20 ms ramp.
 
-`SPEED_RAMP_DURATION_MS` is 150 ms. At 60 fps this is approximately 9 frames, giving a per-frame
-step of ~0.008× for the default 0.75× delta (1.0× → 1.75×) — well below the auditory perception
-threshold for rate discontinuities.
+The complete cycle is ~45 ms. The rate change happens while the signal is at zero — physically
+inaudible.
 
-`requestAnimationFrame` is intentionally used here (rather than `setInterval`) because it is
-synchronised with the browser's render/audio pipeline, which minimises the time between the
-JavaScript write to `playbackRate` and the corresponding decoder state update. The analysis loop
-still uses `setInterval` for consistent firing when the tab is backgrounded.
+The analysis loop uses `setInterval` (not `requestAnimationFrame`) for consistent firing when the
+tab is backgrounded. Speed transitions use `AudioParam` scheduling which is pipeline-accurate and
+does not suffer from `requestAnimationFrame` throttling in background tabs.
 
 ### External rate-change detection
 
@@ -253,6 +253,28 @@ The content script records the last rate it set in `lastKnownRate`. On each anal
 compares `video.playbackRate` to `lastKnownRate`. A discrepancy greater than 0.05 indicates an
 external change (user interaction, another extension, or the page's own player controls). When
 this is detected, the analysis loop stops and does not resume for the current page session.
+
+### Seek handling
+
+When the user scrubs the video, the browser fires `seeking` (start of seek) followed by `seeked`
+(seek complete). Without explicit handling, the silence detector would inherit stale state: a
+`silenceSince` timestamp from before the seek could cause an immediate fast-mode trigger at the
+new position even if speech is present.
+
+`seeking` handler:
+1. Set `isSeeking = true` — the analysis loop returns early on every tick while this flag is set.
+2. Cancel any in-progress gain ramp and restore `gainNode.gain` to 1 immediately. A seek already
+   disrupts the audio pipeline, so no fade is needed and leaving gain at 0 would cause silence
+   after the seek completes.
+3. If `currentMode === 'fast'`, assign `playbackRate = normalRate` directly (no gain fade — audio
+   is already disrupted) and notify the popup via `chrome.storage.local`.
+
+`seeked` handler:
+1. Reset `silenceSince = null` — the silence timer restarts clean at the new position.
+2. Set `isSeeking = false` — the analysis loop resumes on the next tick.
+
+Handlers are attached in `startAnalysis` and removed in `stopAnalysis`. This prevents stale
+listeners from accumulating when the targeted video element is replaced by a different one.
 
 ## Settings Propagation
 

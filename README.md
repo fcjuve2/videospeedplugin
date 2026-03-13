@@ -41,6 +41,7 @@ as audio resumes, the rate returns to normal — smoothly, without jarring jumps
   at any time and are indicated with a `•` marker on the active mode button
 - Live mode indicator in the popup showing whether the current video is playing at normal or fast speed
 - Enable/disable toggle that immediately restores normal playback when turned off
+- Seek reset: scrubbing the video immediately restores normal speed, freezes the silence timer for the duration of the seek, and resumes detection cleanly from the new position
 - External rate-change detection: if the user manually adjusts speed, auto-control pauses
 - MutationObserver-based video discovery — works with dynamically inserted video elements (SPAs)
 - Graceful handling of cross-origin and DRM-protected videos with a non-intrusive banner notice
