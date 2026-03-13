@@ -7,19 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-03-13
+
 ### Added
 
-- Seek reset: when the user scrubs the video, the plugin now resets internal silence-detection
-  state and freezes the analysis loop for the duration of the seek.
-  - `seeking` event: any in-progress gain ramp is cancelled (preventing gain from being stuck at
-    0), `playbackRate` is restored to `normalRate` immediately (no gain fade — the seek already
-    disrupts the audio stream), and the analysis loop is blocked via `isSeeking = true`.
-  - `seeked` event: `silenceSince` is reset and `isSeeking` is cleared, allowing the loop to
-    resume on the next tick with a clean silence timer.
-  - Handlers are attached per-video in `startAnalysis` and removed in `stopAnalysis`, preventing
-    stale listeners on replaced video elements.
-  - The selected acceleration mode (Comfort / Balanced / Turbo) is not affected.
-  - No-op when the plugin is disabled.
+- Site exclusion: a per-domain toggle in the popup lets the user disable the plugin on the
+  current site without affecting other domains.
+  - The label shows the active tab's hostname (e.g. `www.example.com`). Toggling it adds or
+    removes the hostname from `excludedDomains`, a string array persisted in
+    `chrome.storage.sync` (syncs across Chrome profiles).
+  - When exclusion is toggled on while the plugin is running, `resetSpeed()` and `stopAnalysis()`
+    are called immediately so the video returns to normal speed without requiring a page reload.
+  - The toggle is hidden automatically when the popup is opened on a non-web page (e.g.
+    `chrome://` URLs) where `window.location.hostname` is empty.
+  - `manifest.json` now declares the `tabs` permission (required by `chrome.tabs.query` to read
+    the active tab URL in the popup).
 
 ## [1.2.1] - 2026-03-13
 

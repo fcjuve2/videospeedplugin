@@ -12,6 +12,7 @@ const DEFAULTS = {
   silenceDelay: 500,
   showOverlay: false,
   activeMode: 'balanced',
+  excludedDomains: [],
 };
 
 const PRESETS = {
@@ -36,6 +37,8 @@ const fastRateInput      = $('fastRate');
 const silenceThreshInput = $('silenceThreshold');
 const silenceDelayInput  = $('silenceDelay');
 const showOverlayToggle  = $('showOverlay');
+const excludeSiteToggle  = $('excludeSite');
+const excludeSiteLabel   = $('excludeSiteLabel');
 const resetBtn           = $('resetBtn');
 const resetStatsBtn      = $('resetStatsBtn');
 const statSession        = $('statSession');
@@ -46,6 +49,7 @@ const modeBtns           = document.querySelectorAll('.mode-btn');
 // ── State ─────────────────────────────────────────────────────────────────────
 
 let settings = { ...DEFAULTS };
+let currentDomain = '';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -90,6 +94,10 @@ function renderSettings() {
   silenceThreshInput.value     = settings.silenceThreshold;
   silenceDelayInput.value      = settings.silenceDelay;
   showOverlayToggle.checked    = settings.showOverlay;
+
+  if (currentDomain) {
+    excludeSiteToggle.checked = (settings.excludedDomains || []).includes(currentDomain);
+  }
 
   updateModeIndicator();
   renderModeBtns();
@@ -228,6 +236,19 @@ showOverlayToggle.addEventListener('change', () => {
   saveSettings();
 });
 
+excludeSiteToggle.addEventListener('change', () => {
+  if (!currentDomain) return;
+  const domains = settings.excludedDomains || [];
+  if (excludeSiteToggle.checked) {
+    if (!domains.includes(currentDomain)) {
+      settings.excludedDomains = [...domains, currentDomain];
+    }
+  } else {
+    settings.excludedDomains = domains.filter((d) => d !== currentDomain);
+  }
+  saveSettings();
+});
+
 modeBtns.forEach((btn) => {
   btn.addEventListener('click', () => {
     const mode = btn.dataset.mode;
@@ -273,6 +294,24 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 // ── Init ──────────────────────────────────────────────────────────────────────
+
+chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+  const url = tabs[0]?.url;
+  if (url) {
+    try {
+      currentDomain = new URL(url).hostname;
+      if (currentDomain) {
+        excludeSiteLabel.textContent = currentDomain;
+        excludeSiteToggle.checked = (settings.excludedDomains || []).includes(currentDomain);
+      }
+    } catch (_) {}
+  }
+  if (!currentDomain) {
+    // Non-web page (e.g. chrome://) — hide the exclusion row
+    const row = excludeSiteToggle.closest('.site-exclusion-row');
+    if (row) row.style.display = 'none';
+  }
+});
 
 chrome.storage.sync.get(DEFAULTS, (stored) => {
   settings = { ...DEFAULTS, ...stored };

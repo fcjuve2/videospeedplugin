@@ -11,6 +11,7 @@ const DEFAULTS = {
   silenceThreshold: 0.01,
   silenceDelay: 500,
   showOverlay: false,
+  excludedDomains: [],
 };
 
 const ANALYSIS_INTERVAL_MS   = 75;
@@ -67,6 +68,13 @@ function loadSettings(callback) {
   }
 }
 
+// ─── Site exclusion ──────────────────────────────────────────────────────────
+
+function isCurrentSiteExcluded() {
+  const host = window.location.hostname;
+  return Array.isArray(settings.excludedDomains) && settings.excludedDomains.includes(host);
+}
+
 // Listen for settings changes from popup
 if (typeof chrome !== 'undefined' && chrome.storage) {
   chrome.storage.onChanged.addListener((changes, area) => {
@@ -76,6 +84,10 @@ if (typeof chrome !== 'undefined' && chrome.storage) {
     }
     if (!settings.enabled) {
       resetSpeed();
+    }
+    if (isCurrentSiteExcluded()) {
+      resetSpeed();
+      stopAnalysis();
     }
   });
 }
@@ -481,6 +493,7 @@ function findPrimaryVideo() {
 
 function handleVideoFound(video) {
   if (!settings.enabled) return;
+  if (isCurrentSiteExcluded()) return;
   if (video === currentVideo) return;
 
   console.log('[SmartVideoSpeed] Video element found.');
@@ -501,6 +514,7 @@ observer.observe(document.documentElement, { childList: true, subtree: true });
 // ─── Initialisation ───────────────────────────────────────────────────────────
 
 loadSettings(() => {
+  if (isCurrentSiteExcluded()) return;
   const video = findPrimaryVideo();
   if (video) handleVideoFound(video);
 });

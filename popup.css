@@ -283,6 +283,20 @@ input[type="number"]::-webkit-outer-spin-button {
   color: #e74c3c;
 }
 
+/* ── Site exclusion row ── */
+.site-exclusion-row {
+  border-top: 1px solid #222;
+  padding-top: 10px;
+}
+
+.site-exclusion-label {
+  color: rgba(231, 76, 60, 0.75);
+}
+
+.toggle input:checked + .toggle-track--danger {
+  background: #e74c3c;
+}
+
 /* ── Reset button ── */
 .reset-btn {
   width: 100%;

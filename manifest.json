@@ -1,11 +1,12 @@
 {
   "manifest_version": 3,
   "name": "Smart Video Speed",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "description": "Automatically speeds up silent parts of videos using real-time audio analysis.",
   "permissions": [
     "storage",
-    "activeTab"
+    "activeTab",
+    "tabs"
   ],
   "background": {
     "service_worker": "background.js"
