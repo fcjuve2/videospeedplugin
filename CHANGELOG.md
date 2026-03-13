@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Seek reset: when the user scrubs the video, the plugin now resets internal silence-detection
+  state and freezes the analysis loop for the duration of the seek.
+  - `seeking` event: any in-progress gain ramp is cancelled (preventing gain from being stuck at
+    0), `playbackRate` is restored to `normalRate` immediately (no gain fade — the seek already
+    disrupts the audio stream), and the analysis loop is blocked via `isSeeking = true`.
+  - `seeked` event: `silenceSince` is reset and `isSeeking` is cleared, allowing the loop to
+    resume on the next tick with a clean silence timer.
+  - Handlers are attached per-video in `startAnalysis` and removed in `stopAnalysis`, preventing
+    stale listeners on replaced video elements.
+  - The selected acceleration mode (Comfort / Balanced / Turbo) is not affected.
+  - No-op when the plugin is disabled.
+
 ## [1.2.1] - 2026-03-13
 
 ### Fixed

@@ -37,6 +37,9 @@ let silenceSince          = null;
 let currentMode           = 'normal'; // 'normal' | 'fast'
 let lastKnownRate         = null;     // detect external playbackRate changes
 let isCrossOriginBlocked  = false;
+let isSeeking             = false;
+let seekingHandler        = null;
+let seekedHandler         = null;
 
 // ─── Time-saved statistics ────────────────────────────────────────────────────
 
@@ -290,10 +293,57 @@ function showSavedToast(seconds) {
   }, 2000);
 }
 
+// ─── Seek handling ───────────────────────────────────────────────────────────
+
+function attachSeekHandlers(video) {
+  seekingHandler = () => {
+    if (!settings.enabled) return;
+    isSeeking = true;
+
+    // Cancel any in-progress gain ramp so gain is not left at 0.
+    if (transitionTimer) {
+      clearTimeout(transitionTimer);
+      transitionTimer = null;
+    }
+    if (gainNode && audioCtx) {
+      gainNode.gain.cancelScheduledValues(audioCtx.currentTime);
+      gainNode.gain.setValueAtTime(1, audioCtx.currentTime);
+    }
+
+    // Reset speed directly — seek already disrupts the audio stream, no click.
+    if (currentMode === 'fast') {
+      video.playbackRate = settings.normalRate;
+      lastKnownRate      = settings.normalRate;
+      currentMode        = 'normal';
+      notifyModeChange('normal');
+    }
+  };
+
+  seekedHandler = () => {
+    if (!settings.enabled) return;
+    silenceSince = null;
+    isSeeking    = false;
+  };
+
+  video.addEventListener('seeking', seekingHandler);
+  video.addEventListener('seeked',  seekedHandler);
+}
+
+function detachSeekHandlers() {
+  if (currentVideo && seekingHandler) {
+    currentVideo.removeEventListener('seeking', seekingHandler);
+    currentVideo.removeEventListener('seeked',  seekedHandler);
+  }
+  seekingHandler = null;
+  seekedHandler  = null;
+  isSeeking      = false;
+}
+
 // ─── Analysis loop ───────────────────────────────────────────────────────────
 
 function analyseAudio() {
   if (!settings.enabled || !currentVideo || isCrossOriginBlocked) return;
+  if (isSeeking) return;
 
   // While paused or ended: hold state, never accumulate savings.
   if (currentVideo.paused || currentVideo.ended) {
@@ -363,12 +413,14 @@ function startAnalysis(video) {
   initAudio(video);
   if (isCrossOriginBlocked) return;
 
+  attachSeekHandlers(video);
   lastKnownRate = video.playbackRate;
   analysisTimer = setInterval(analyseAudio, ANALYSIS_INTERVAL_MS);
   console.log('[SmartVideoSpeed] Analysis started.');
 }
 
 function stopAnalysis() {
+  detachSeekHandlers();
   if (analysisTimer) {
     clearInterval(analysisTimer);
     analysisTimer = null;
