@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <rect width="128" height="128" rx="24" fill="#0f0f1a"/>
+  <!-- Play triangle -->
+  <polygon points="44,32 44,96 100,64" fill="#4f8ef7"/>
+  <!-- Speed lines -->
+  <line x1="28" y1="48" x2="38" y2="48" stroke="#2ed573" stroke-width="5" stroke-linecap="round"/>
+  <line x1="28" y1="64" x2="38" y2="64" stroke="#2ed573" stroke-width="5" stroke-linecap="round"/>
+  <line x1="28" y1="80" x2="38" y2="80" stroke="#2ed573" stroke-width="5" stroke-linecap="round"/>
+</svg>

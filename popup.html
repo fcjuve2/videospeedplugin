@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Video Speed</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1 class="title">Smart Video Speed</h1>
+      <label class="toggle" title="Enable / Disable">
+        <input type="checkbox" id="enabled" />
+        <span class="toggle-track">
+          <span class="toggle-thumb"></span>
+        </span>
+      </label>
+    </header>
+
+    <div id="mode-indicator" class="mode-indicator mode-normal">
+      <span id="mode-label">Normal speed</span>
+    </div>
+
+    <!-- Acceleration mode selector -->
+    <div class="mode-selector">
+      <button class="mode-btn mode-btn--comfort" data-mode="comfort">🟢 Comfort</button>
+      <button class="mode-btn mode-btn--balanced" data-mode="balanced">🔵 Balanced</button>
+      <button class="mode-btn mode-btn--turbo" data-mode="turbo">🔴 Turbo</button>
+    </div>
+
+    <section class="settings">
+      <!-- Normal Rate -->
+      <div class="setting-row">
+        <label for="normalRate" class="setting-label">Normal rate</label>
+        <input type="range" class="setting-slider" id="normalRateSlider"
+               min="0.5" max="2.0" step="0.25" />
+        <input type="number" class="setting-value" id="normalRate"
+               min="0.5" max="2.0" step="0.25" />
+        <span class="unit">&times;</span>
+      </div>
+
+      <!-- Fast Rate -->
+      <div class="setting-row">
+        <label for="fastRate" class="setting-label">Fast rate</label>
+        <input type="range" class="setting-slider" id="fastRateSlider"
+               min="1.0" max="4.0" step="0.25" />
+        <input type="number" class="setting-value" id="fastRate"
+               min="1.0" max="4.0" step="0.25" />
+        <span class="unit">&times;</span>
+      </div>
+
+      <!-- Silence Threshold -->
+      <div class="row">
+        <label for="silenceThreshold" class="row-label">Silence threshold</label>
+        <div class="row-control row-control--narrow">
+          <input type="number" id="silenceThreshold"
+                 min="0.001" max="0.05" step="0.001" />
+          <span class="unit">RMS</span>
+        </div>
+      </div>
+
+      <!-- Silence Delay -->
+      <div class="row">
+        <label for="silenceDelay" class="row-label">Silence delay</label>
+        <div class="row-control row-control--narrow">
+          <input type="number" id="silenceDelay"
+                 min="100" max="2000" step="50" />
+          <span class="unit">ms</span>
+        </div>
+      </div>
+
+      <!-- Overlay toggle -->
+      <div class="row">
+        <label for="showOverlay" class="row-label">Show overlay</label>
+        <label class="toggle" title="Show toast on video when fast mode activates">
+          <input type="checkbox" id="showOverlay" />
+          <span class="toggle-track">
+            <span class="toggle-thumb"></span>
+          </span>
+        </label>
+      </div>
+    </section>
+
+    <button id="resetBtn" class="reset-btn">Reset to defaults</button>
+
+    <!-- Statistics section -->
+    <hr class="divider" />
+
+    <section class="stats">
+      <h2 class="stats-title">Time saved</h2>
+
+      <div class="stats-row">
+        <span class="stats-label">Current video</span>
+        <span class="stats-value" id="statSession">&#8212;</span>
+      </div>
+      <div class="stats-row">
+        <span class="stats-label">Today</span>
+        <span class="stats-value" id="statToday">&#8212;</span>
+      </div>
+      <div class="stats-row">
+        <span class="stats-label">All time</span>
+        <span class="stats-value" id="statTotal">&#8212;</span>
+      </div>
+
+      <button id="resetStatsBtn" class="reset-btn reset-btn--danger">
+        Reset statistics
+      </button>
+    </section>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

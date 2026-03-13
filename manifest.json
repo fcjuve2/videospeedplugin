@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "Smart Video Speed",
+  "version": "1.1.0",
+  "description": "Automatically speeds up silent parts of videos using real-time audio analysis.",
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.youtube.com/*",
+        "https://vimeo.com/*",
+        "https://www.netflix.com/*",
+        "https://*/*",
+        "http://*/*"
+      ],
+      "js": ["content_script.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
