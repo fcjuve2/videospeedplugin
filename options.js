@@ -150,19 +150,59 @@ function renderFullChart(days) {
   svg.innerHTML = parts.join('');
 }
 
+// ── Per-site table ────────────────────────────────────────────────────────────
+
+function escapeHtml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function renderDomainTable(domainStats) {
+  const tbody = document.getElementById('domainTableBody');
+  if (!tbody) return;
+
+  const entries = Object.entries(domainStats || {});
+  if (entries.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty-msg">No data yet.</td></tr>';
+    return;
+  }
+
+  entries.sort((a, b) => b[1].savedSeconds - a[1].savedSeconds);
+
+  tbody.innerHTML = entries.map(([domain, { savedSeconds, sessions }], i) => {
+    const avg = sessions > 0 ? savedSeconds / sessions : 0;
+    const cls = i < 3 ? ` class="top-${i + 1}"` : '';
+    return `<tr${cls}>
+      <td class="domain-name">${escapeHtml(domain)}</td>
+      <td>${formatTime(savedSeconds)}</td>
+      <td>${sessions}</td>
+      <td>${formatTime(avg)}</td>
+    </tr>`;
+  }).join('');
+}
+
+document.getElementById('clearDomainBtn').addEventListener('click', () => {
+  if (!confirm('Clear all per-site statistics? This cannot be undone.')) return;
+  chrome.storage.local.set({ domainStats: {} });
+});
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 
-chrome.storage.local.get({ weeklyStats: [] }, ({ weeklyStats }) => {
-  const days = buildDays(weeklyStats);
+chrome.storage.local.get({ weeklyStats: [], domainStats: {} }, (data) => {
+  const days = buildDays(data.weeklyStats);
   renderSummary(days);
   renderFullChart(days);
+  renderDomainTable(data.domainStats);
 });
 
 // Live updates while the page is open
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && changes.weeklyStats) {
+  if (area !== 'local') return;
+  if (changes.weeklyStats) {
     const days = buildDays(changes.weeklyStats.newValue || []);
     renderSummary(days);
     renderFullChart(days);
+  }
+  if (changes.domainStats) {
+    renderDomainTable(changes.domainStats.newValue || {});
   }
 });

@@ -28,6 +28,27 @@
     <div class="chart-wrap">
       <svg id="fullChart" aria-label="Weekly time saved bar chart"></svg>
     </div>
+
+    <hr class="divider" />
+
+    <div class="section-header">
+      <h2 class="section-title">Per-site statistics</h2>
+      <button id="clearDomainBtn" class="danger-btn">Clear</button>
+    </div>
+
+    <div class="table-wrap">
+      <table class="domain-table">
+        <thead>
+          <tr>
+            <th>Site</th>
+            <th>Saved</th>
+            <th>Sessions</th>
+            <th>Avg / session</th>
+          </tr>
+        </thead>
+        <tbody id="domainTableBody"></tbody>
+      </table>
+    </div>
   </div>
 
   <script src="options.js"></script>

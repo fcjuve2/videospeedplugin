@@ -51,9 +51,10 @@ let ratechangeHandler     = null;
 
 // SESSION_ID is unique per page load. Background uses it to detect navigations.
 // (Not sent in this implementation — delta approach is used instead.)
-let sessionSaved     = 0;  // seconds saved this page session
-let lastSentSaved    = 0;  // value at last successful sendMessage
+let sessionSaved      = 0;   // seconds saved this page session
+let lastSentSaved     = 0;   // value at last successful sendMessage
 let lastStatsSendTime = 0;
+let sessionStartSent  = false; // true after first UPDATE_STATS for this session
 
 // ─── Toast state ──────────────────────────────────────────────────────────────
 
@@ -244,14 +245,20 @@ function maybeSendStats() {
   if (now - lastStatsSendTime < STATS_SEND_INTERVAL_MS) return;
   lastStatsSendTime = now;
 
-  const delta = sessionSaved - lastSentSaved;
-  lastSentSaved = sessionSaved;
+  const delta      = sessionSaved - lastSentSaved;
+  lastSentSaved    = sessionSaved;
+
+  const hostname   = window.location.hostname.replace(/^www\./, '');
+  const newSession = !sessionStartSent && delta > 0;
+  if (newSession) sessionStartSent = true;
 
   chrome.runtime.sendMessage({
     type: 'UPDATE_STATS',
     sessionSaved,
     delta,
     isFast: currentMode === 'fast',
+    hostname,
+    newSession,
   }).catch(() => {
     // Service worker may be sleeping — it will wake on next message.
     // lastSentSaved was already updated, so the delta is carried forward.
@@ -269,7 +276,9 @@ function flushStats() {
     type: 'UPDATE_STATS',
     sessionSaved,
     delta,
-    isFast: false,
+    isFast:     false,
+    hostname:   window.location.hostname.replace(/^www\./, ''),
+    newSession: false,
   }).catch(() => {});
 }
 
@@ -469,6 +478,7 @@ function startAnalysis(video) {
   sessionSaved      = 0;
   lastSentSaved     = 0;
   lastStatsSendTime = 0;
+  sessionStartSent  = false;
 
   initAudio(video);
   if (isCrossOriginBlocked) return;

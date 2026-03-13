@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-03-13
+
+### Added
+
+- Per-site statistics: the options page now shows a table of time saved broken down by domain,
+  sorted by total savings descending. Columns: Site / Saved / Sessions / Avg per session. The
+  top-3 rows are distinguished by a gold / silver / bronze left-border accent.
+- `domainStats` key in `chrome.storage.local`: an object keyed by hostname (e.g.
+  `"youtube.com"`) with `{ savedSeconds, sessions }` per domain. Updated by the background
+  service worker on every `UPDATE_STATS` message together with `savedTime` and `weeklyStats`.
+  Cleared by `RESET_STATS` (popup) and by the "Clear" button on the options page.
+- `hostname` field added to every `UPDATE_STATS` message — the current page's hostname with
+  `www.` stripped (`window.location.hostname.replace(/^www\./, '')`).
+- `newSession` flag in `UPDATE_STATS`: `true` on the first message that carries `delta > 0`
+  for each video session (tracked via `sessionStartSent` in the content script), used by the
+  background to increment the domain session counter exactly once per analysis session.
+
 ## [1.5.0] - 2026-03-13
 
 ### Added

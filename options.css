@@ -69,3 +69,108 @@ body {
   width: 100%;
   height: auto;
 }
+
+/* ── Per-site section ── */
+.divider {
+  border: none;
+  border-top: 1px solid #1e1e30;
+  margin: 24px 0;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #e0e0e0;
+}
+
+.danger-btn {
+  padding: 5px 14px;
+  background: transparent;
+  border: 1px solid rgba(231, 76, 60, 0.4);
+  border-radius: 5px;
+  color: rgba(231, 76, 60, 0.7);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.danger-btn:hover {
+  border-color: #e74c3c;
+  color: #e74c3c;
+}
+
+/* ── Domain table ── */
+.table-wrap {
+  border: 1px solid #1e1e30;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.domain-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.domain-table thead th {
+  padding: 9px 12px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #555;
+  background: #131320;
+  border-bottom: 1px solid #1e1e30;
+}
+
+.domain-table thead th:not(:first-child) {
+  text-align: right;
+}
+
+.domain-table tbody tr {
+  border-bottom: 1px solid #1a1a2a;
+  transition: background 0.1s;
+}
+
+.domain-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.domain-table tbody tr:hover {
+  background: #1a1a2e;
+}
+
+.domain-table tbody td {
+  padding: 9px 12px;
+  color: #ccc;
+}
+
+.domain-table tbody td:not(:first-child) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: #aaa;
+}
+
+.domain-name {
+  color: #e0e0e0;
+  font-weight: 500;
+}
+
+/* Top-3 ranking indicator — coloured left border on the site cell */
+.domain-table tbody tr.top-1 td.domain-name { border-left: 3px solid #f1c40f; padding-left: 9px; }
+.domain-table tbody tr.top-2 td.domain-name { border-left: 3px solid #95a5a6; padding-left: 9px; }
+.domain-table tbody tr.top-3 td.domain-name { border-left: 3px solid #e67e22; padding-left: 9px; }
+
+.empty-msg {
+  text-align: center;
+  color: #444;
+  padding: 20px;
+}

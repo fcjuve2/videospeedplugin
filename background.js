@@ -65,10 +65,13 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === 'UPDATE_STATS') {
     const { sessionSaved, delta, isFast } = msg;
 
+    const { hostname, newSession } = msg;
+
     chrome.storage.local.get(
       {
         savedTime:   { ...DEFAULT_STATS, todayDate: todayString() },
         weeklyStats: [],
+        domainStats: {},
       },
       (data) => {
         const stats = { ...data.savedTime };
@@ -89,8 +92,18 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
         stats.session = sessionSaved;
 
-        const weeklyStats = mergeWeeklyStats(data.weeklyStats, today, stats.today);
-        chrome.storage.local.set({ savedTime: stats, weeklyStats });
+        const weeklyStats  = mergeWeeklyStats(data.weeklyStats, today, stats.today);
+
+        // Update per-domain stats
+        const domainStats  = { ...data.domainStats };
+        if (hostname) {
+          const entry = { savedSeconds: 0, sessions: 0, ...(domainStats[hostname] || {}) };
+          if (delta > 0)  entry.savedSeconds += delta;
+          if (newSession) entry.sessions     += 1;
+          domainStats[hostname] = entry;
+        }
+
+        chrome.storage.local.set({ savedTime: stats, weeklyStats, domainStats });
         updateBadge(sessionSaved, isFast);
       }
     );
@@ -102,7 +115,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   // ── Stats reset from popup ─────────────────────────────────────────────────
   if (msg.type === 'RESET_STATS') {
     const empty = { ...DEFAULT_STATS, todayDate: todayString() };
-    chrome.storage.local.set({ savedTime: empty, weeklyStats: [] });
+    chrome.storage.local.set({ savedTime: empty, weeklyStats: [], domainStats: {} });
     chrome.action.setBadgeText({ text: '' });
     sendResponse({ ok: true });
     return true;
