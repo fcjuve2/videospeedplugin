@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Video Speed — Statistics</title>
+  <link rel="stylesheet" href="options.css" />
+</head>
+<body>
+  <div class="container">
+    <h1 class="title">Time saved — last 7 days</h1>
+
+    <div class="summary">
+      <div class="summary-item">
+        <span class="summary-value" id="weekTotal">&#8212;</span>
+        <span class="summary-label">This week</span>
+      </div>
+      <div class="summary-item">
+        <span class="summary-value" id="weekAvg">&#8212;</span>
+        <span class="summary-label">Daily average</span>
+      </div>
+      <div class="summary-item">
+        <span class="summary-value" id="weekBest">&#8212;</span>
+        <span class="summary-label">Best day</span>
+      </div>
+    </div>
+
+    <div class="chart-wrap">
+      <svg id="fullChart" aria-label="Weekly time saved bar chart"></svg>
+    </div>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

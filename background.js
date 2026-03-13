@@ -42,10 +42,19 @@ function updateBadge(sessionSaved, isFast) {
   chrome.action.setBadgeBackgroundColor({ color: isFast ? '#27AE60' : '#888888' });
 }
 
-// ─── Storage ─────────────────────────────────────────────────────────────────
+// ─── Helpers — weekly stats ───────────────────────────────────────────────────
 
-function writeStats(stats) {
-  chrome.storage.local.set({ savedTime: stats });
+/** Merge today's total into the 7-entry weeklyStats array. */
+function mergeWeeklyStats(entries, todayStr, todaySeconds) {
+  const list = Array.isArray(entries) ? [...entries] : [];
+  const idx  = list.findIndex((e) => e.date === todayStr);
+  if (idx >= 0) {
+    list[idx] = { date: todayStr, savedSeconds: todaySeconds };
+  } else {
+    list.push({ date: todayStr, savedSeconds: todaySeconds });
+  }
+  list.sort((a, b) => a.date.localeCompare(b.date));
+  return list.length > 7 ? list.slice(list.length - 7) : list;
 }
 
 // ─── Message handler ─────────────────────────────────────────────────────────
@@ -57,7 +66,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     const { sessionSaved, delta, isFast } = msg;
 
     chrome.storage.local.get(
-      { savedTime: { ...DEFAULT_STATS, todayDate: todayString() } },
+      {
+        savedTime:   { ...DEFAULT_STATS, todayDate: todayString() },
+        weeklyStats: [],
+      },
       (data) => {
         const stats = { ...data.savedTime };
 
@@ -77,7 +89,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
         stats.session = sessionSaved;
 
-        writeStats(stats);
+        const weeklyStats = mergeWeeklyStats(data.weeklyStats, today, stats.today);
+        chrome.storage.local.set({ savedTime: stats, weeklyStats });
         updateBadge(sessionSaved, isFast);
       }
     );
@@ -89,7 +102,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   // ── Stats reset from popup ─────────────────────────────────────────────────
   if (msg.type === 'RESET_STATS') {
     const empty = { ...DEFAULT_STATS, todayDate: todayString() };
-    writeStats(empty);
+    chrome.storage.local.set({ savedTime: empty, weeklyStats: [] });
     chrome.action.setBadgeText({ text: '' });
     sendResponse({ ok: true });
     return true;

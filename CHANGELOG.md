@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-03-13
+
+### Added
+
+- Weekly time chart: a compact 7-bar SVG chart appears in the popup below the statistics counters,
+  showing time saved per day for the last 7 days. Today's bar is highlighted in blue (`#2E75B6`);
+  day-of-week letters appear below each bar; native `<title>` tooltips show the exact value on
+  hover. Bars are scaled relative to the daily maximum.
+- Detailed statistics page (`options.html`) opened via a "Detailed statistics ›" link in the
+  popup. Shows a full 540 × 300 px SVG chart with a Y-axis in minutes, date labels on the X-axis
+  (`Jan 7` format), value labels above bars, and three summary cards: This week / Daily average /
+  Best day.
+- `weeklyStats` key in `chrome.storage.local`: an array of up to 7 `{ date, savedSeconds }`
+  entries (one per calendar day), sorted ascending by date. The oldest entry is dropped
+  automatically when an 8th day arrives. Updated by the background service worker on every
+  `UPDATE_STATS` message alongside `savedTime`. Cleared on `RESET_STATS`.
+- `manifest.json` now declares `options_ui` pointing to `options.html` with `open_in_tab: true`.
+
 ## [1.4.0] - 2026-03-13
 
 ### Added

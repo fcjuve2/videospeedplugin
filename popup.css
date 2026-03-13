@@ -383,3 +383,25 @@ input[type="number"]::-webkit-outer-spin-button {
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
 }
+
+/* ── Compact weekly chart ── */
+.week-chart {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+}
+
+.details-link {
+  display: block;
+  text-align: center;
+  font-size: 11px;
+  color: #4f8ef7;
+  text-decoration: none;
+  margin-top: 6px;
+  margin-bottom: 4px;
+  transition: color 0.15s;
+}
+
+.details-link:hover {
+  color: #7ab4ff;
+}

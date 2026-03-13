@@ -131,6 +131,60 @@ function updateModeIndicator(modeOverride) {
   });
 }
 
+// ── Weekly chart ──────────────────────────────────────────────────────────────
+
+function renderWeekChart(weeklyStats) {
+  const svg = document.getElementById('weekChart');
+  if (!svg) return;
+
+  // Logical dimensions — SVG scales to 100 % width via CSS
+  const W       = 288; // matches popup inner width (320 - 2×16 px padding)
+  const CHART_H = 44;
+  const LABEL_H = 13;
+  const GAP     = 2;
+  const n       = 7;
+  const barW    = (W - GAP * (n - 1)) / n; // ≈ 39.4 px
+
+  const todayStr   = new Date().toISOString().slice(0, 10);
+  const DAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+  // Build full 7-day series (oldest first, fill missing days with 0)
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().slice(0, 10);
+    const entry   = (weeklyStats || []).find((e) => e.date === dateStr);
+    days.push({ date: dateStr, savedSeconds: entry ? (entry.savedSeconds || 0) : 0 });
+  }
+
+  const maxVal = Math.max(...days.map((d) => d.savedSeconds), 1);
+  const parts  = [];
+
+  days.forEach((day, i) => {
+    const x       = i * (barW + GAP);
+    const frac    = day.savedSeconds / maxVal;
+    const barH    = day.savedSeconds > 0 ? Math.max(2, frac * CHART_H) : 0;
+    const barY    = CHART_H - barH;
+    const isToday = day.date === todayStr;
+    const fill    = isToday ? '#2E75B6' : '#2a2a42';
+    const cx      = x + barW / 2;
+    const secs    = Math.floor(day.savedSeconds);
+    const tip     = secs > 0 ? formatTime(secs) : '0s';
+    const letter  = DAY_LETTERS[new Date(day.date + 'T12:00:00').getDay()];
+
+    parts.push(
+      `<rect x="${x.toFixed(1)}" y="${barY.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" fill="${fill}" rx="2"><title>${day.date}: ${tip}</title></rect>`,
+      `<text x="${cx.toFixed(1)}" y="${(CHART_H + LABEL_H - 1).toFixed(1)}" text-anchor="middle" fill="${isToday ? '#7ab4ff' : '#444'}" font-size="9" font-family="sans-serif">${letter}</text>`,
+    );
+  });
+
+  svg.setAttribute('viewBox', `0 0 ${W} ${CHART_H + LABEL_H}`);
+  svg.setAttribute('width', '100%');
+  svg.setAttribute('height', CHART_H + LABEL_H);
+  svg.innerHTML = parts.join('');
+}
+
 // ── Acceleration mode helpers ─────────────────────────────────────────────────
 
 const MODE_LABELS = {
@@ -293,6 +347,9 @@ chrome.storage.onChanged.addListener((changes, area) => {
     if (changes.savedTime) {
       renderStats(changes.savedTime.newValue || DEFAULT_STATS);
     }
+    if (changes.weeklyStats) {
+      renderWeekChart(changes.weeklyStats.newValue || []);
+    }
   }
 });
 
@@ -322,6 +379,12 @@ chrome.storage.sync.get(DEFAULTS, (stored) => {
   renderSettings();
 });
 
-chrome.storage.local.get({ savedTime: DEFAULT_STATS }, ({ savedTime }) => {
-  renderStats(savedTime);
+chrome.storage.local.get({ savedTime: DEFAULT_STATS, weeklyStats: [] }, (data) => {
+  renderStats(data.savedTime);
+  renderWeekChart(data.weeklyStats);
+});
+
+document.getElementById('detailsLink').addEventListener('click', (e) => {
+  e.preventDefault();
+  chrome.runtime.openOptionsPage();
 });
