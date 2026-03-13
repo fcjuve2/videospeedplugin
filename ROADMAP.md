@@ -9,7 +9,7 @@ Planned features in priority order. Each item links to the relevant spec below.
 | 3 | ~~[Manual override pause](#3-manual-override-pause)~~ ✓ | `content_script.js`, `popup.js` |
 | 4 | ~~[Weekly time chart](#4-weekly-time-chart)~~ ✓ | `popup.*`, `options.*`, `background.js` |
 | 5 | ~~[Per-site statistics](#5-per-site-statistics)~~ ✓ | `background.js`, `options.*` |
-| 6 | [Video-end notification](#6-video-end-notification) | `content_script.js`, `background.js`, `popup.*` |
+| 6 | ~~[Video-end notification](#6-video-end-notification)~~ ✓ | `content_script.js`, `background.js`, `popup.*` |
 
 ---
 

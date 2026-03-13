@@ -22,6 +22,19 @@ function todayString() {
   return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 }
 
+/** Format seconds into a human-readable string for notifications. */
+function formatTimeBrief(sec) {
+  const s = Math.floor(sec || 0);
+  if (s <= 0) return '0s';
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const rem = s % 60;
+  if (m < 60) return rem > 0 ? `${m}m ${rem}s` : `${m}m`;
+  const h = Math.floor(m / 60);
+  const mRem = m % 60;
+  return mRem > 0 ? `${h}h ${mRem}m` : `${h}h`;
+}
+
 /** Format seconds into badge text: "45s" or "1:23" */
 function formatBadge(seconds) {
   const s = Math.floor(seconds);
@@ -110,6 +123,29 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
     sendResponse({ ok: true });
     return true; // keep channel open for async callback
+  }
+
+  // ── Video-end notification ─────────────────────────────────────────────────
+  if (msg.type === 'VIDEO_END') {
+    const { sessionSaved, hostname } = msg;
+
+    chrome.storage.sync.get({ showSystemNotifications: false }, ({ showSystemNotifications }) => {
+      if (!showSystemNotifications) { sendResponse({ ok: true }); return; }
+
+      chrome.storage.local.get({ savedTime: DEFAULT_STATS }, ({ savedTime }) => {
+        const body = `Saved ${formatTimeBrief(sessionSaved)} on last video.` +
+                     ` Today total: ${formatTimeBrief(savedTime.today)}.`;
+        chrome.notifications.create('svs-video-end', {
+          type:    'basic',
+          iconUrl: 'icons/icon128.png',
+          title:   'Smart Video Speed',
+          message: body,
+        });
+        sendResponse({ ok: true });
+      });
+    });
+
+    return true; // keep channel open for async callbacks
   }
 
   // ── Stats reset from popup ─────────────────────────────────────────────────

@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-03-13
+
+### Added
+
+- Video-end notification: when a video ends and more than 10 seconds were saved during playback,
+  two optional notifications fire (each controlled by its own toggle):
+  - **On-video toast** (`showOverlay`): a centred, semi-transparent overlay appears over the
+    video player showing `Smart Video Speed saved Xm Ys on this video ⚡`. Displayed for 4
+    seconds with a 0.4 s fade-out; click anywhere on the toast to dismiss early.
+  - **System notification** (`showSystemNotifications`, default `off`): sent via
+    `chrome.notifications.create` from the background service worker. Title: `Smart Video Speed`;
+    body: `Saved Xm Ys on last video. Today total: Zm.`; uses the extension's 128 px icon.
+    Replaces any previous notification with the same ID (`svs-video-end`).
+- `showSystemNotifications` toggle added to the popup settings section (below "Show overlay").
+  Stored in `chrome.storage.sync`; default `false`.
+- `manifest.json` now declares the `notifications` permission.
+
 ## [1.6.0] - 2026-03-13
 
 ### Added

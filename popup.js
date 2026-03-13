@@ -11,6 +11,7 @@ const DEFAULTS = {
   silenceThreshold: 0.01,
   silenceDelay: 500,
   showOverlay: false,
+  showSystemNotifications: false,
   activeMode: 'balanced',
   excludedDomains: [],
 };
@@ -36,8 +37,9 @@ const fastRateSlider     = $('fastRateSlider');
 const fastRateInput      = $('fastRate');
 const silenceThreshInput = $('silenceThreshold');
 const silenceDelayInput  = $('silenceDelay');
-const showOverlayToggle  = $('showOverlay');
-const excludeSiteToggle  = $('excludeSite');
+const showOverlayToggle      = $('showOverlay');
+const showSysNotifToggle     = $('showSystemNotifications');
+const excludeSiteToggle      = $('excludeSite');
 const excludeSiteLabel   = $('excludeSiteLabel');
 const resetBtn           = $('resetBtn');
 const resetStatsBtn      = $('resetStatsBtn');
@@ -93,7 +95,8 @@ function renderSettings() {
   fastRateInput.value          = settings.fastRate;
   silenceThreshInput.value     = settings.silenceThreshold;
   silenceDelayInput.value      = settings.silenceDelay;
-  showOverlayToggle.checked    = settings.showOverlay;
+  showOverlayToggle.checked        = settings.showOverlay;
+  showSysNotifToggle.checked       = settings.showSystemNotifications;
 
   if (currentDomain) {
     excludeSiteToggle.checked = (settings.excludedDomains || []).includes(currentDomain);
@@ -290,6 +293,11 @@ silenceDelayInput.addEventListener('change', () => {
 
 showOverlayToggle.addEventListener('change', () => {
   settings.showOverlay = showOverlayToggle.checked;
+  saveSettings();
+});
+
+showSysNotifToggle.addEventListener('change', () => {
+  settings.showSystemNotifications = showSysNotifToggle.checked;
   saveSettings();
 });
 

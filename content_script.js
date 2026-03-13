@@ -46,6 +46,7 @@ let overridePauseTimer    = null;
 let seekingHandler        = null;
 let seekedHandler         = null;
 let ratechangeHandler     = null;
+let endedHandler          = null;
 
 // ─── Time-saved statistics ────────────────────────────────────────────────────
 
@@ -323,6 +324,59 @@ function showSavedToast(seconds) {
   }, 2000);
 }
 
+// ─── End-of-video toast ───────────────────────────────────────────────────────
+
+function formatSavedTime(sec) {
+  const s = Math.floor(sec);
+  if (s <= 0) return '0s';
+  const m = Math.floor(s / 60);
+  const rem = s % 60;
+  if (m === 0) return `${s}s`;
+  return rem > 0 ? `${m}m ${rem}s` : `${m}m`;
+}
+
+function showEndToast(seconds) {
+  if (!settings.showOverlay) return;
+  if (!currentVideo) return;
+
+  const s = Math.floor(seconds);
+  if (s <= 10) return; // minimum threshold — avoid noise on short clips
+
+  const existing = document.getElementById('svs-end-toast');
+  if (existing) existing.remove();
+
+  const rect = currentVideo.getBoundingClientRect();
+  const cx   = rect.left + rect.width  / 2;
+  const cy   = rect.top  + rect.height / 2;
+
+  const el = document.createElement('div');
+  el.id = 'svs-end-toast';
+  el.style.cssText = `
+    position: fixed;
+    left: ${cx}px; top: ${cy}px;
+    transform: translate(-50%, -50%);
+    z-index: 2147483647;
+    background: rgba(0,0,0,0.82); color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 14px; font-weight: 500;
+    padding: 12px 20px; border-radius: 8px;
+    pointer-events: auto; cursor: pointer;
+    opacity: 1; transition: opacity 0.4s ease;
+    text-align: center; max-width: 280px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  `;
+  el.textContent = `Smart Video Speed saved ${formatSavedTime(s)} on this video \u26A1`;
+
+  const dismiss = () => {
+    el.style.opacity = '0';
+    setTimeout(() => el.remove(), 400);
+  };
+  el.addEventListener('click', dismiss);
+
+  document.body.appendChild(el);
+  setTimeout(dismiss, 4000);
+}
+
 // ─── Seek handling ───────────────────────────────────────────────────────────
 
 function attachSeekHandlers(video) {
@@ -369,6 +423,31 @@ function detachSeekHandlers() {
   seekingHandler = null;
   seekedHandler  = null;
   isSeeking      = false;
+}
+
+// ─── Video-end notification ───────────────────────────────────────────────────
+
+function attachEndedHandler(video) {
+  endedHandler = () => {
+    if (!settings.enabled) return;
+    if (sessionSaved <= 10) return;
+
+    showEndToast(sessionSaved);
+
+    chrome.runtime.sendMessage({
+      type:        'VIDEO_END',
+      sessionSaved,
+      hostname:    window.location.hostname.replace(/^www\./, ''),
+    }).catch(() => {});
+  };
+  video.addEventListener('ended', endedHandler);
+}
+
+function detachEndedHandler() {
+  if (currentVideo && endedHandler) {
+    currentVideo.removeEventListener('ended', endedHandler);
+  }
+  endedHandler = null;
 }
 
 // ─── Manual override pause ───────────────────────────────────────────────────
@@ -485,6 +564,7 @@ function startAnalysis(video) {
 
   attachSeekHandlers(video);
   attachRatechangeHandler(video);
+  attachEndedHandler(video);
   lastKnownRate = video.playbackRate;
   analysisTimer = setInterval(analyseAudio, ANALYSIS_INTERVAL_MS);
   console.log('[SmartVideoSpeed] Analysis started.');
@@ -493,6 +573,7 @@ function startAnalysis(video) {
 function stopAnalysis() {
   detachSeekHandlers();
   detachRatechangeHandler();
+  detachEndedHandler();
   if (analysisTimer) {
     clearInterval(analysisTimer);
     analysisTimer = null;
