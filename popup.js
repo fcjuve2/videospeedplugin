@@ -121,6 +121,9 @@ function updateModeIndicator(modeOverride) {
     if (mode === 'fast') {
       modeIndicator.className = 'mode-indicator mode-fast';
       modeLabel.textContent   = 'Fast speed';
+    } else if (mode === 'override') {
+      modeIndicator.className = 'mode-indicator mode-override';
+      modeLabel.textContent   = '\u23F8 Paused (manual override)';
     } else {
       modeIndicator.className = 'mode-indicator mode-normal';
       modeLabel.textContent   = 'Normal speed';

@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-03-13
+
+### Added
+
+- Manual override pause: when the user changes `playbackRate` via the player controls or keyboard,
+  auto-control yields for 10 seconds then resumes automatically.
+  - A `ratechange` listener on the video element detects user-initiated speed changes. Events
+    fired by the plugin itself are filtered out via an `isPluginChanging` flag, which is set to
+    `true` immediately before every plugin write to `video.playbackRate` and cleared 50 ms later.
+  - During the pause, the analysis loop returns early each tick — silence detection is frozen but
+    the interval is not cancelled, so no re-initialisation is needed on resume.
+  - The popup mode indicator shows `⏸ Paused (manual override)` (amber colour) during the pause
+    and returns to its previous state (Normal / Fast) when the 10-second timer expires.
+  - The override timer resets if the user changes the rate again during the pause window.
+  - The previous polling-based external-rate-change detection in `analyseAudio` is replaced by
+    this event-driven approach. The old behaviour (permanent `stopAnalysis()` on rate change) is
+    gone — auto-control always resumes after 10 s.
+
 ## [1.3.0] - 2026-03-13
 
 ### Added

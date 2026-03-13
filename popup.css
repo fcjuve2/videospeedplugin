@@ -126,6 +126,16 @@ body {
   background: #555;
 }
 
+.mode-override {
+  background: rgba(241, 196, 15, 0.12);
+  color: #f1c40f;
+  border: 1px solid rgba(241, 196, 15, 0.25);
+}
+
+.mode-override::before {
+  background: #f1c40f;
+}
+
 @keyframes pulse {
   from { opacity: 0.5; }
   to   { opacity: 1;   }

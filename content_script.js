@@ -18,6 +18,7 @@ const ANALYSIS_INTERVAL_MS   = 75;
 const GAIN_FADE_DURATION_S   = 0.020; // 20 ms gain fade via AudioParam — sample-accurate
 const GAIN_SETTLE_MS         = 25;    // wait for gain to reach 0 before changing playbackRate
 const STATS_SEND_INTERVAL_MS = 5000;  // send stats to background every 5 s
+const OVERRIDE_PAUSE_MS      = 10000; // yield control for 10 s after manual rate change
 
 let settings = { ...DEFAULTS };
 
@@ -36,11 +37,15 @@ let analysisTimer         = null;
 let transitionTimer       = null;
 let silenceSince          = null;
 let currentMode           = 'normal'; // 'normal' | 'fast'
-let lastKnownRate         = null;     // detect external playbackRate changes
+let lastKnownRate         = null;
 let isCrossOriginBlocked  = false;
 let isSeeking             = false;
+let isPluginChanging      = false;    // true while plugin is writing playbackRate
+let isOverridePaused      = false;    // true during 10-s manual override pause
+let overridePauseTimer    = null;
 let seekingHandler        = null;
 let seekedHandler         = null;
+let ratechangeHandler     = null;
 
 // ─── Time-saved statistics ────────────────────────────────────────────────────
 
@@ -188,8 +193,10 @@ function setSpeedSmooth(video, targetRate) {
 
   // Without a running AudioContext, fall back to a direct assignment.
   if (!gainNode || !audioCtx || audioCtx.state !== 'running') {
+    isPluginChanging   = true;
     video.playbackRate = targetRate;
     lastKnownRate      = targetRate;
+    setTimeout(() => { isPluginChanging = false; }, 50);
     return;
   }
 
@@ -205,8 +212,10 @@ function setSpeedSmooth(video, targetRate) {
     transitionTimer = null;
     if (!gainNode || !audioCtx) return; // teardown raced the timer
 
+    isPluginChanging   = true;
     video.playbackRate = targetRate;
     lastKnownRate      = targetRate;
+    setTimeout(() => { isPluginChanging = false; }, 50);
 
     const t = audioCtx.currentTime;
     gainNode.gain.cancelScheduledValues(t);
@@ -324,8 +333,10 @@ function attachSeekHandlers(video) {
 
     // Reset speed directly — seek already disrupts the audio stream, no click.
     if (currentMode === 'fast') {
+      isPluginChanging   = true;
       video.playbackRate = settings.normalRate;
       lastKnownRate      = settings.normalRate;
+      setTimeout(() => { isPluginChanging = false; }, 50);
       currentMode        = 'normal';
       notifyModeChange('normal');
     }
@@ -351,6 +362,45 @@ function detachSeekHandlers() {
   isSeeking      = false;
 }
 
+// ─── Manual override pause ───────────────────────────────────────────────────
+
+function enterOverridePause() {
+  isOverridePaused = true;
+  silenceSince     = null;
+
+  if (overridePauseTimer) {
+    clearTimeout(overridePauseTimer);
+  }
+
+  notifyModeChange('override');
+  console.log('[SmartVideoSpeed] Manual override — pausing auto-control for 10 s.');
+
+  overridePauseTimer = setTimeout(() => {
+    overridePauseTimer = null;
+    isOverridePaused   = false;
+    silenceSince       = null;
+    notifyModeChange(currentMode);
+    console.log('[SmartVideoSpeed] Override pause ended — resuming auto-control.');
+  }, OVERRIDE_PAUSE_MS);
+}
+
+function attachRatechangeHandler(video) {
+  ratechangeHandler = () => {
+    if (isPluginChanging) return;
+    if (!settings.enabled) return;
+    if (isCurrentSiteExcluded()) return;
+    enterOverridePause();
+  };
+  video.addEventListener('ratechange', ratechangeHandler);
+}
+
+function detachRatechangeHandler() {
+  if (currentVideo && ratechangeHandler) {
+    currentVideo.removeEventListener('ratechange', ratechangeHandler);
+  }
+  ratechangeHandler = null;
+}
+
 // ─── Analysis loop ───────────────────────────────────────────────────────────
 
 function analyseAudio() {
@@ -361,24 +411,22 @@ function analyseAudio() {
   if (currentVideo.paused || currentVideo.ended) {
     silenceSince = null;
     if (currentMode === 'fast') {
-      currentMode = 'normal';
+      currentMode        = 'normal';
+      isPluginChanging   = true;
       currentVideo.playbackRate = settings.normalRate;
-      lastKnownRate = settings.normalRate;
+      lastKnownRate      = settings.normalRate;
+      setTimeout(() => { isPluginChanging = false; }, 50);
       notifyModeChange('normal');
     }
     return;
   }
 
+  // Yield while the user has manual control — resume after OVERRIDE_PAUSE_MS.
+  if (isOverridePaused) return;
+
   // Resume suspended context (browsers suspend after user inactivity)
   if (audioCtx && audioCtx.state === 'suspended') {
     audioCtx.resume().catch(() => {});
-  }
-
-  // Detect external playbackRate change — user took manual control
-  if (lastKnownRate !== null && Math.abs(currentVideo.playbackRate - lastKnownRate) > 0.05) {
-    console.log('[SmartVideoSpeed] External rate change detected — pausing auto-control.');
-    stopAnalysis();
-    return;
   }
 
   const rms = computeRMS();
@@ -426,6 +474,7 @@ function startAnalysis(video) {
   if (isCrossOriginBlocked) return;
 
   attachSeekHandlers(video);
+  attachRatechangeHandler(video);
   lastKnownRate = video.playbackRate;
   analysisTimer = setInterval(analyseAudio, ANALYSIS_INTERVAL_MS);
   console.log('[SmartVideoSpeed] Analysis started.');
@@ -433,6 +482,7 @@ function startAnalysis(video) {
 
 function stopAnalysis() {
   detachSeekHandlers();
+  detachRatechangeHandler();
   if (analysisTimer) {
     clearInterval(analysisTimer);
     analysisTimer = null;
@@ -441,7 +491,12 @@ function stopAnalysis() {
     clearTimeout(transitionTimer);
     transitionTimer = null;
   }
-  silenceSince = null;
+  if (overridePauseTimer) {
+    clearTimeout(overridePauseTimer);
+    overridePauseTimer = null;
+  }
+  isOverridePaused = false;
+  silenceSince     = null;
 }
 
 // ─── Notifications ───────────────────────────────────────────────────────────
