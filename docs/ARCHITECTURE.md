@@ -6,6 +6,7 @@
 - [File Structure](#file-structure)
 - [Audio Pipeline](#audio-pipeline)
 - [Speed Control](#speed-control)
+- [Manual Override Pause](#manual-override-pause)
 - [Time-Saved Statistics](#time-saved-statistics)
 - [Settings Propagation](#settings-propagation)
 - [Error Handling](#error-handling)
@@ -47,6 +48,7 @@ flowchart TD
         AN["AnalyserNode\nfftSize = 256"]
         RMS["RMS Computation\ngetByteTimeDomainData"]
         SC["Speed Controller\nsetSpeedSmooth"]
+        OVR["Manual Override Pause\n(ratechange → 10 s freeze)"]
         PBR["video.playbackRate"]
         ACCUM["Stats Accumulator\nsessionSaved += Δt × (fast−normal)/fast"]
         TOAST["Overlay Toast\n(optional)"]
@@ -76,6 +78,8 @@ flowchart TD
     MEAS --> AN
     AN -->|time-domain data| RMS
     RMS -->|RMS < threshold for delay ms| SC
+    VE -->|ratechange event| OVR
+    OVR -->|isOverridePaused = true| SC
     SC --> PBR
     SC -->|mode = fast| ACCUM
     SC -->|mode = fast + showOverlay| TOAST
@@ -90,7 +94,7 @@ flowchart TD
 | File | Responsibility |
 | --- | --- |
 | `manifest.json` | Extension metadata, permissions (`storage`, `activeTab`, `tabs`), background service worker declaration, content script injection rules, icon declarations |
-| `content_script.js` | Audio graph management, RMS analysis loop, speed control, seek reset, site exclusion check, time-saved accumulation, stats messaging, optional overlay toast, video discovery, settings listener, page lifecycle cleanup |
+| `content_script.js` | Audio graph management, RMS analysis loop, speed control, seek reset, manual override pause, site exclusion check, time-saved accumulation, stats messaging, optional overlay toast, video discovery, settings listener, page lifecycle cleanup |
 | `background.js` | Receives `UPDATE_STATS` and `RESET_STATS` messages; persists statistics to `chrome.storage.local` on every stats message; manages toolbar badge text and colour |
 | `popup.html` | Popup markup — toggle, mode indicator, acceleration mode selector (segmented control), five setting controls, reset button, divider, statistics section |
 | `popup.js` | Popup logic — reads/writes `chrome.storage.sync`, applies acceleration mode presets, syncs sliders with number inputs, detects preset modifications, manages site exclusion toggle, updates mode indicator and statistics via `chrome.storage.local`, sends `RESET_STATS` to background |
@@ -277,6 +281,55 @@ new position even if speech is present.
 
 Handlers are attached in `startAnalysis` and removed in `stopAnalysis`. This prevents stale
 listeners from accumulating when the targeted video element is replaced by a different one.
+
+## Manual Override Pause
+
+When the user manually adjusts `playbackRate` (via player controls, keyboard shortcuts, or
+another extension), the `ratechange` event fires on the video element. Without intervention,
+the next analysis tick would immediately overwrite the user's rate — a frustrating experience.
+
+### isPluginChanging flag
+
+Every plugin-initiated write to `video.playbackRate` is bracketed:
+
+```
+isPluginChanging = true
+video.playbackRate = targetRate          ← ratechange fires here, but is ignored
+setTimeout(() => isPluginChanging = false, 50 ms)
+```
+
+The 50 ms window comfortably covers the synchronous event dispatch plus any browser-internal
+queuing. Only events where `isPluginChanging === false` at time of dispatch are treated as
+user-initiated.
+
+### Override pause lifecycle
+
+```
+user changes playbackRate
+  → ratechange fires, isPluginChanging = false
+    → enterOverridePause()
+        → isOverridePaused = true
+        → silenceSince reset
+        → chrome.storage.local.set({ currentMode: 'override' })
+        → setTimeout(10 000 ms)
+          → isOverridePaused = false
+          → silenceSince reset
+          → chrome.storage.local.set({ currentMode: <currentMode> })
+          → analysis loop resumes on next tick
+```
+
+If the user changes the rate again during the pause, `enterOverridePause` is called again, the
+old timer is cancelled, and a fresh 10-second window starts.
+
+The `setInterval` for the analysis loop is never cancelled during a manual override — the loop
+runs every 75 ms but returns early while `isOverridePaused` is `true`. This avoids the cost of
+re-initialisation on resume.
+
+### Popup indicator
+
+The popup mode indicator displays `⏸ Paused (manual override)` in amber (`#f1c40f`) during the
+pause. This is driven by `chrome.storage.local.currentMode === 'override'` via the same
+`chrome.storage.onChanged` path used by the normal/fast indicator.
 
 ## Settings Propagation
 
