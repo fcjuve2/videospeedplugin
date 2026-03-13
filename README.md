@@ -2,7 +2,7 @@
 
 Automatically speeds up silent parts of videos using real-time audio analysis.
 
-![Version](https://img.shields.io/badge/version-1.2.1-blue)
+![Version](https://img.shields.io/badge/version-1.7.0-blue)
 ![Manifest](https://img.shields.io/badge/manifest-v3-green)
 ![License](https://img.shields.io/badge/license-MIT-brightgreen)
 ![Platform](https://img.shields.io/badge/platform-Chrome-yellow)
@@ -34,24 +34,31 @@ as audio resumes, the rate returns to normal — smoothly, without jarring jumps
 
 - Real-time audio analysis using the Web Audio API and RMS (Root Mean Square) amplitude measurement
 - Automatic speed switching between a configurable normal rate and a configurable fast rate
-- Smooth speed transitions — no abrupt jumps in playback rate
+- Smooth speed transitions via GainNode/AudioParam fade — no audible click when changing rate
 - Configurable silence threshold and silence delay before the speed change triggers
 - **Acceleration mode selector** — three one-click presets (Comfort / Balanced / Turbo) that set
-  Fast rate, Silence threshold, and Silence delay simultaneously; manual adjustments are allowed
-  at any time and are indicated with a `•` marker on the active mode button
-- Live mode indicator in the popup showing whether the current video is playing at normal or fast speed
+  Fast rate, Silence threshold, and Silence delay simultaneously; manual adjustments are indicated
+  with a `•` marker on the active mode button
+- Live mode indicator in the popup — Normal / Fast / Paused (manual override) / Disabled
 - Enable/disable toggle that immediately restores normal playback when turned off
-- Seek reset: scrubbing the video immediately restores normal speed, freezes the silence timer for the duration of the seek, and resumes detection cleanly from the new position
-- External rate-change detection: if the user manually adjusts speed, auto-control pauses
+- **Seek reset** — scrubbing the video immediately restores normal speed, freezes the silence
+  timer for the duration of the seek, and resumes detection cleanly from the new position
+- **Site exclusion** — per-domain toggle in the popup to disable the extension on the current
+  site; excluded domains are stored in `chrome.storage.sync` and sync across Chrome profiles
+- **Manual override pause** — when the user changes playback speed manually, auto-control yields
+  for 10 seconds then resumes automatically; popup shows `⏸ Paused (manual override)`
+- **Weekly time chart** — compact 7-bar SVG chart in the popup; full chart with Y-axis, date
+  labels, and summary cards (This week / Daily average / Best day) on the detailed statistics page
+- **Per-site statistics** — options page table (Site / Saved / Sessions / Avg per session),
+  sorted by savings, top-3 rows highlighted with gold/silver/bronze accents
+- **Video-end notification** — when a video ends with >10 s saved, optionally shows a centered
+  on-video toast and/or a system notification with session savings and today's total
 - MutationObserver-based video discovery — works with dynamically inserted video elements (SPAs)
 - Graceful handling of cross-origin and DRM-protected videos with a non-intrusive banner notice
 - Settings persisted via `chrome.storage.sync` — survive browser restarts and sync across devices
-- Reset-to-defaults button in the popup
-- **Time-saved counter** — tracks how many seconds were saved per video, today, and all time
+- Time-saved counter — tracks how many seconds were saved per video, today, and all time
 - Toolbar badge showing accumulated time saved for the current video (updates every 5 seconds)
-- Optional on-video overlay toast displayed each time fast mode activates, showing total session savings
-- Statistics section in the popup with per-video, daily, and all-time totals
-- Reset statistics button with confirmation dialog
+- Reset-to-defaults and Reset statistics buttons with confirmation dialogs
 
 ## Screenshots / UI
 
@@ -61,20 +68,24 @@ following elements, top to bottom:
 | Element | Type | Description |
 | --- | --- | --- |
 | Title | Heading | "Smart Video Speed" displayed at the top left |
-| Enable toggle | Checkbox / toggle switch | Enables or disables automatic speed control |
-| Mode indicator | Status badge | Shows "Normal speed", "Fast speed", or "Disabled"; pulses green when fast |
-| Acceleration mode selector | Segmented control (3 buttons) | One-click presets: Comfort, Balanced, Turbo. Active mode is highlighted; shows • when manually modified |
+| Enable toggle | Toggle switch | Enables or disables automatic speed control |
+| Mode indicator | Status badge | Shows "Normal speed", "Fast speed", "⏸ Paused (manual override)", or "Disabled" |
+| Acceleration mode selector | Segmented control (3 buttons) | One-click presets: Comfort, Balanced, Turbo. Active mode is highlighted; shows `•` when manually modified |
 | Normal rate | Range slider + number input | Sets playback speed during voiced segments (0.5× – 2.0×) |
 | Fast rate | Range slider + number input | Sets playback speed during silent segments (1.0× – 4.0×) |
 | Silence threshold | Number input | RMS amplitude below which audio is considered silent (0.001 – 0.05) |
 | Silence delay | Number input | Milliseconds of continuous silence before switching to fast speed (100 – 2000 ms) |
-| Show overlay | Toggle switch | Enables an on-video toast notification each time fast mode activates |
-| Reset to defaults | Button | Restores all settings to their factory values |
+| Show overlay | Toggle switch | Enables on-video toast when fast mode activates and when the video ends |
+| End notification | Toggle switch | Enables a system notification when the video ends (default: off) |
+| Exclude this site | Toggle switch (red) | Disables the extension for the current domain |
+| Reset to defaults | Button | Restores all settings to their factory values immediately |
 | — | Horizontal divider | Visual separator between settings and statistics |
 | Time saved — Current video | Read-only value | Seconds saved since the current page was loaded |
 | Time saved — Today | Read-only value | Cumulative seconds saved since midnight |
 | Time saved — All time | Read-only value | Cumulative seconds saved since installation |
-| Reset statistics | Button | Clears all three counters after a confirmation dialog |
+| Weekly chart | SVG bar chart | 7-day history; today's bar highlighted in blue; hover for exact values |
+| Detailed statistics | Link | Opens the full statistics page in a new tab |
+| Reset statistics | Button | Clears all counters after a confirmation dialog |
 
 ## Installation
 
@@ -108,16 +119,26 @@ once it is available.
 | Control | What it does |
 | --- | --- |
 | Enable toggle | Turn the extension on or off. When off, playback rate is restored to `normalRate`. |
-| Acceleration mode | Select a preset (Comfort / Balanced / Turbo) to set Fast rate, Silence threshold, and Silence delay in one click. Clicking the active mode button when it shows • restores the preset. |
+| Acceleration mode | Select a preset (Comfort / Balanced / Turbo) to set Fast rate, Silence threshold, and Silence delay in one click. Clicking the active mode button when it shows `•` restores the preset. |
 | Normal rate | The speed used when the video has audible content. Default: 1.0×. |
 | Fast rate | The speed used when silence is detected. Default: 1.75×. |
 | Silence threshold | RMS amplitude floor. Lower values are more sensitive (detect quieter audio as silence). |
 | Silence delay | How long silence must persist before the speed increases. Reduces false triggers. |
-| Show overlay | When enabled, a small toast appears on the video each time fast mode activates. Default: off. |
+| Show overlay | When enabled, an on-video toast appears each time fast mode activates and at video end. Default: off. |
+| End notification | When enabled, a system notification appears when the video ends with >10 s saved. Default: off. |
+| Exclude this site | Disables the extension on the current domain. Toggle it off to re-enable (requires page reload). |
 | Reset to defaults | Restores all settings to their factory values immediately. |
-| Reset statistics | Clears all time-saved counters (per-video, today, all time) after confirmation. |
+| Reset statistics | Clears all time-saved counters (per-video, today, all time, weekly, per-site) after confirmation. |
 
 Settings take effect in the active tab within milliseconds via `chrome.storage.onChanged`.
+
+### Detailed statistics page
+
+Click **Detailed statistics ›** in the popup to open the full statistics page. It shows:
+
+- A full bar chart of time saved per day for the last 7 days, with Y-axis in minutes and date labels
+- Summary cards: This week / Daily average / Best day
+- A per-site breakdown table with columns: Site / Saved / Sessions / Avg per session
 
 ### Toolbar badge
 
@@ -126,11 +147,9 @@ video session:
 
 | State | Badge text | Badge colour |
 | --- | --- | --- |
-| Plugin disabled | (empty) | — |
-| No savings yet | (empty) | — |
+| Plugin disabled or no savings | (empty) | — |
 | Savings < 60 s | e.g. `45s` | Grey `#888888` |
-| Savings ≥ 60 s | e.g. `1:23` | Green `#27AE60` |
-| Fast mode active right now | current value | Green `#27AE60` |
+| Savings ≥ 60 s | e.g. `1:23` | Green `#27AE60` (when fast) / Grey (when normal) |
 
 The badge updates at most once every 5 seconds to avoid excessive IPC overhead.
 
@@ -146,8 +165,10 @@ for the full reference.
 | `fastRate` | `1.75` | 1.0 – 4.0 | Playback rate during silence |
 | `silenceThreshold` | `0.01` | 0.001 – 0.05 | RMS amplitude threshold for silence detection |
 | `silenceDelay` | `500` | 100 – 2000 ms | Silence duration required before speed increase |
-| `showOverlay` | `false` | `true` / `false` | Show on-video toast when fast mode activates |
+| `showOverlay` | `false` | `true` / `false` | Show on-video toast when fast mode activates / video ends |
+| `showSystemNotifications` | `false` | `true` / `false` | Send system notification when video ends with >10 s saved |
 | `activeMode` | `'balanced'` | `'comfort'` / `'balanced'` / `'turbo'` | Selected acceleration mode preset |
+| `excludedDomains` | `[]` | string[] | Hostnames where the extension is disabled |
 
 ## Platform Support
 
@@ -166,46 +187,52 @@ attempt speed control for that video. Playback continues normally without interf
 | Metric | Value |
 | --- | --- |
 | Analysis interval | 75 ms |
-| Speed transition duration | 150 ms (`requestAnimationFrame` linear ramp, ~9 frames at 60 fps) |
+| Speed transition duration | ~45 ms (20 ms gain fade out → rate change → 20 ms gain fade in) |
 | Silence detection latency | `silenceDelay` + up to one analysis interval (default ~575 ms) |
 | Audio buffer size | 256 samples (fftSize) |
 | CPU overhead | Negligible — one `getByteTimeDomainData` call per interval |
 
 The analysis loop uses `setInterval` rather than `requestAnimationFrame` to keep processing
-decoupled from the rendering pipeline and to ensure consistent timing even when the tab is in the
-background. Speed transitions use `requestAnimationFrame` for frame-accurate interpolation of
-`playbackRate`, eliminating the audible click caused by discrete rate steps.
+consistent even when the tab is in the background. Speed transitions use `AudioParam.linearRampToValueAtTime`
+for sample-accurate gain fading, eliminating the audible click caused by direct `playbackRate`
+changes at Web Audio render-quantum boundaries.
 
 ## Known Limitations
 
-- Cross-origin and DRM-protected videos cannot be analyzed (YouTube, Netflix). The extension falls
-  back silently and shows a one-time banner.
+- Cross-origin and DRM-protected videos cannot be analyzed (YouTube, Netflix). The extension
+  falls back silently and shows a one-time banner.
 - Only the largest visible video on the page is targeted. Smaller embedded videos are ignored.
-- If the user manually changes playback speed (via the video controls or a keyboard shortcut),
-  the extension detects the external rate change and stops automatic control for the remainder of
-  the page session.
+- When the user manually changes playback speed, auto-control pauses for 10 seconds then resumes.
+  Repeated manual changes each reset the 10-second timer.
+- When a domain is removed from the exclusion list, the extension does not restart automatically —
+  a page reload is required.
 - The `AudioContext` must be created in response to a user gesture in some browser configurations.
   If the context starts in a suspended state, it is resumed automatically on the next analysis tick
   after any user interaction.
 - Syncing settings via `chrome.storage.sync` requires the user to be signed in to Chrome when
-  using the sync feature across devices.
-- Time-saved statistics are device-local (`chrome.storage.local`) and do not sync across Chrome
-  instances.
+  using the sync feature across devices. Time-saved statistics are device-local
+  (`chrome.storage.local`) and do not sync.
 - If the background service worker is terminated by the browser (after ~30 seconds of inactivity)
-  and restarts mid-session, at most one 5-second stats batch may be double-counted. This is an
-  accepted edge case with negligible practical impact.
+  and restarts mid-session, at most one 5-second stats batch may be lost. This is an accepted edge
+  case with negligible practical impact.
 - The on-video overlay toast is injected into the page DOM and may be obscured by the player's
   own UI on some sites.
+- System notifications require the `notifications` permission. Chrome may prompt the user to allow
+  notifications from the extension on first use.
 
 ## Architecture Overview
 
 The extension has three execution contexts: the **content script**, the **background service
-worker**, and the **popup**. The content script performs audio analysis and accumulates time-saved
-statistics. Every 5 seconds it forwards a delta value to the background service worker via
-`chrome.runtime.sendMessage`. The background persists the counters to `chrome.storage.local` with
-on every stats message and updates the toolbar badge. The popup reads from both `chrome.storage.sync`
-(settings) and `chrome.storage.local` (statistics, current mode) on open and reflects live updates
-via `chrome.storage.onChanged`.
+worker**, and the **popup**. The content script performs audio analysis, accumulates time-saved
+statistics, and handles video lifecycle events (seek, end, manual rate change). Every 5 seconds
+it forwards a delta value and metadata (hostname, session flag) to the background service worker
+via `chrome.runtime.sendMessage`. The background persists `savedTime`, `weeklyStats`, and
+`domainStats` to `chrome.storage.local` on every stats message and updates the toolbar badge.
+The popup reads from both `chrome.storage.sync` (settings) and `chrome.storage.local` (statistics,
+current mode) on open and reflects live updates via `chrome.storage.onChanged`.
+
+The **detailed statistics page** (`options.html`) is opened in a new tab and reads directly from
+`chrome.storage.local`, rendering the full weekly chart and per-site table.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full component diagram, audio pipeline
 description, and design decisions.
