@@ -1,8 +1,0 @@
-# Developer-local files (not committed)
-settings.local.json
-todo-*.md
-memory/
-projects/
-plans/
-
-# Ways and CLAUDE.md ARE committed (shared team knowledge)
