@@ -22,6 +22,7 @@ flowchart TD
     subgraph Popup["Popup (popup.html / popup.js)"]
         UI["UI Controls\n(sliders, toggles, reset)"]
         MS["Acceleration Mode Selector\n(Comfort / Balanced / Turbo)"]
+        SE["Site Exclusion Toggle\n(per-domain)"]
         MI["Mode Indicator"]
         STATS["Statistics Section\n(session / today / total)"]
         RSTBTN["Reset Statistics Button"]
@@ -34,7 +35,7 @@ flowchart TD
     end
 
     subgraph Storage["Chrome Storage"]
-        SYNC["chrome.storage.sync\nenabled, normalRate, fastRate,\nsilenceThreshold, silenceDelay,\nshowOverlay, activeMode"]
+        SYNC["chrome.storage.sync\nenabled, normalRate, fastRate,\nsilenceThreshold, silenceDelay,\nshowOverlay, activeMode,\nexcludedDomains"]
         LOCAL["chrome.storage.local\ncurrentMode\nsavedTime { session, today, total, todayDate }"]
     end
 
@@ -54,6 +55,7 @@ flowchart TD
 
     UI -->|write| SYNC
     MS -->|write fastRate, silenceThreshold,\nsilenceDelay, activeMode| SYNC
+    SE -->|write excludedDomains| SYNC
     SYNC -->|onChanged| ONC
     ONC --> SC
 
@@ -87,11 +89,11 @@ flowchart TD
 
 | File | Responsibility |
 | --- | --- |
-| `manifest.json` | Extension metadata, permissions (`storage`, `activeTab`), background service worker declaration, content script injection rules, icon declarations |
-| `content_script.js` | Audio graph management, RMS analysis loop, speed control, seek reset, time-saved accumulation, stats messaging, optional overlay toast, video discovery, settings listener, page lifecycle cleanup |
+| `manifest.json` | Extension metadata, permissions (`storage`, `activeTab`, `tabs`), background service worker declaration, content script injection rules, icon declarations |
+| `content_script.js` | Audio graph management, RMS analysis loop, speed control, seek reset, site exclusion check, time-saved accumulation, stats messaging, optional overlay toast, video discovery, settings listener, page lifecycle cleanup |
 | `background.js` | Receives `UPDATE_STATS` and `RESET_STATS` messages; persists statistics to `chrome.storage.local` on every stats message; manages toolbar badge text and colour |
 | `popup.html` | Popup markup — toggle, mode indicator, acceleration mode selector (segmented control), five setting controls, reset button, divider, statistics section |
-| `popup.js` | Popup logic — reads/writes `chrome.storage.sync`, applies acceleration mode presets, syncs sliders with number inputs, detects preset modifications, updates mode indicator and statistics via `chrome.storage.local`, sends `RESET_STATS` to background |
+| `popup.js` | Popup logic — reads/writes `chrome.storage.sync`, applies acceleration mode presets, syncs sliders with number inputs, detects preset modifications, manages site exclusion toggle, updates mode indicator and statistics via `chrome.storage.local`, sends `RESET_STATS` to background |
 | `popup.css` | Dark-theme styles for the popup; 320 px fixed width; flat flex layout for slider rows; segmented control styles with per-mode active colours; divider and statistics section styles |
 | `generate_icons.js` | Build-time helper that generates `icons/icon{16,48,128}.png` from an SVG source using `sharp` |
 | `icons/` | PNG icon assets at three sizes |
@@ -316,6 +318,25 @@ User clicks the '•'-prefixed active mode button
 `activeMode` is a popup-only preference. The content script reads `fastRate`,
 `silenceThreshold`, and `silenceDelay` directly and has no knowledge of `activeMode`.
 
+### Site exclusion (popup to content script)
+
+```
+User toggles "Exclude this site" in the popup
+  -> popup.js reads active tab URL via chrome.tabs.query (requires 'tabs' permission)
+  -> hostname added to / removed from settings.excludedDomains[]
+  -> chrome.storage.sync.set(settings)
+    -> chrome.storage.onChanged fires in content_script.js
+      -> if hostname is now excluded: resetSpeed() + stopAnalysis() called immediately
+      -> if hostname is now included: no automatic restart; takes effect on next page load
+```
+
+On page load, `loadSettings` checks `isCurrentSiteExcluded()` before calling `handleVideoFound`.
+The `handleVideoFound` function also guards against exclusion to cover videos found later by the
+`MutationObserver`.
+
+The popup hides the exclusion row on non-web pages (e.g. `chrome://`) where
+`window.location.hostname` is empty.
+
 ### Mode reporting (content script to popup)
 
 ```
@@ -396,10 +417,10 @@ silence detection while the user works in another tab. `setInterval` continues f
 configured interval regardless of tab visibility. The 75 ms interval is short enough for
 responsive detection without meaningful CPU overhead.
 
-Speed transitions (`setSpeedSmooth`) are the one exception: they use `requestAnimationFrame`
-because the 150 ms ramp is inherently user-visible and benefits from synchronisation with the
-browser's render/audio pipeline. A backgrounded tab will not produce audible clicks regardless,
-so the throttling behaviour of `requestAnimationFrame` is not a concern for transitions.
+Speed transitions (`setSpeedSmooth`) use `AudioParam.linearRampToValueAtTime` (sample-accurate,
+inside the Web Audio render pipeline) plus a single `setTimeout` of 25 ms to wait for the gain
+to reach zero before changing `playbackRate`. Neither mechanism requires frame synchronisation,
+so `requestAnimationFrame` is not used for transitions.
 
 ### MutationObserver for video discovery
 

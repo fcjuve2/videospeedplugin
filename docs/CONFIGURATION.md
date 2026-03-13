@@ -17,6 +17,7 @@ Runtime state (current mode, time-saved statistics) is stored separately in
 - [silenceDelay](#silencedelay)
 - [showOverlay](#showoverlay)
 - [activeMode](#activemode)
+- [excludedDomains](#excludeddomains)
 - [Storage Schema](#storage-schema)
 - [Resetting to Defaults](#resetting-to-defaults)
 - [Resetting Statistics](#resetting-statistics)
@@ -32,6 +33,7 @@ Runtime state (current mode, time-saved statistics) is stored separately in
 | `silenceDelay` | number | `500` | `100` | `2000` | `50` | Milliseconds of continuous silence before speed increases |
 | `showOverlay` | boolean | `false` | — | — | — | Show on-video toast notification when fast mode activates |
 | `activeMode` | string | `'balanced'` | — | — | — | Selected acceleration mode preset (`'comfort'`, `'balanced'`, or `'turbo'`) |
+| `excludedDomains` | string[] | `[]` | — | — | — | Hostnames where the plugin is disabled (e.g. `["www.example.com"]`) |
 
 ## enabled
 
@@ -264,6 +266,42 @@ removing the indicator.
 - `activeMode` is a UI preference. The content script reads `fastRate`, `silenceThreshold`, and
   `silenceDelay` directly and is unaffected by `activeMode`.
 
+## excludedDomains
+
+**Type:** string[] (array of hostname strings)
+**Default:** `[]`
+
+### Purpose
+
+A list of hostnames on which the plugin is fully disabled. When the content script initialises on
+a page whose `window.location.hostname` is in this array, it skips audio graph setup and analysis
+entirely. No audio context is created, no speed changes are made.
+
+### Effect
+
+- If a domain is added while the plugin is running on that tab: `resetSpeed()` and `stopAnalysis()`
+  are called immediately via `chrome.storage.onChanged`. The video returns to `normalRate` without
+  requiring a page reload.
+- If a domain is removed: the plugin does **not** auto-restart on the current page. The user must
+  reload the tab. This is intentional — restarting the audio graph mid-session is disruptive.
+- Exclusions are stored at hostname granularity (e.g. `"www.youtube.com"` does not exclude
+  `"m.youtube.com"`).
+
+### Effect in the popup
+
+The popup reads the active tab URL via `chrome.tabs.query` (requires the `tabs` permission) and
+displays the hostname as the label for the exclusion toggle (e.g. "Exclude this site" becomes
+`"www.example.com"`). The toggle is hidden when the popup is opened on a non-web page
+(`chrome://`, `about:`, `file://` with no hostname).
+
+### Edge cases
+
+- Entries are plain hostname strings — no wildcards, no scheme, no port. The comparison is exact.
+- The array grows unboundedly as the user excludes more domains. There is no upper limit enforced
+  by the extension; the effective limit is `chrome.storage.sync` quota (about 102 KB total).
+- `excludedDomains` syncs across Chrome profiles (like all `chrome.storage.sync` data). Excluding
+  a domain on one device excludes it everywhere.
+
 ## Storage Schema
 
 ### chrome.storage.sync (user settings)
@@ -278,7 +316,8 @@ Written and read by `popup.js`. Applied in `content_script.js` via `chrome.stora
   "silenceThreshold": 0.01,
   "silenceDelay": 500,
   "showOverlay": false,
-  "activeMode": "balanced"
+  "activeMode": "balanced",
+  "excludedDomains": []
 }
 ```
 
