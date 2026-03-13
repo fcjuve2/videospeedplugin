@@ -7,13 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-03-13
+
 ### Fixed
 
-- Audible click on playback rate transitions (Normal → Fast and Fast → Normal) eliminated by
-  replacing the `setInterval`-based step algorithm with a `requestAnimationFrame` linear ramp.
-  The ramp runs for 150 ms, interpolating `playbackRate` every frame (~16 ms) from the current
-  rate to the target. The step size per frame (~0.008× for the default 0.75× delta) is below the
-  auditory perception threshold, making transitions imperceptible.
+- Audible click on playback rate transitions (Normal → Fast and Fast → Normal). Root cause:
+  changing `video.playbackRate` causes the browser's internal resampler to reset at the Web Audio
+  render-quantum boundary, producing a PCM discontinuity regardless of how gradually the rate is
+  interpolated in JavaScript. Fixed by inserting a `GainNode` into the audio graph
+  (`sourceNode → gainNode → analyser → destination`) and using `AudioParam.linearRampToValueAtTime`
+  to fade gain to 0 over 20 ms before changing `playbackRate`, then restoring gain over 20 ms
+  after. The rate change happens while the signal is silent — a physically inaudible 45 ms cycle.
 - Time-saved statistics not appearing in the popup (all rows showed `—` despite the badge
   updating correctly). Root cause: `background.js` deferred all writes to `chrome.storage.local`
   by 10 seconds; the popup read from storage immediately on open and always saw stale or empty
@@ -21,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `UPDATE_STATS` message (~every 5 s), which is the natural cadence of the content script and
   within `chrome.storage.local` write limits. This also resolves the value discrepancy between
   the toolbar badge and the popup counters.
+- Plugin continued accumulating time-saved statistics while the video was paused. Root cause:
+  the analysis loop had no guard for `video.paused` or `video.ended`; a paused video produces
+  zero RMS amplitude, which the silence detector treated as fast-mode silence and incremented the
+  counter. Fixed by returning early from `analyseAudio` when the video is paused or ended,
+  resetting `silenceSince`, and restoring `playbackRate` to `normalRate` if the plugin had already
+  entered fast mode before the pause.
 
 ## [1.2.0] - 2026-03-13
 
