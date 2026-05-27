@@ -98,8 +98,8 @@ npm install sharp
 node generate_icons.js
 ```
 
-The script produces `icons/icon16.png`, `icons/icon48.png`, and `icons/icon128.png`. Commit the
-generated PNGs; do not commit `node_modules/`.
+The script produces `icons/icon16.png`, `icons/icon32.png`, `icons/icon48.png`, and
+`icons/icon128.png`. Commit the generated PNGs; do not commit `node_modules/`.
 
 Add a `.gitignore` entry if one does not exist:
 
@@ -163,7 +163,7 @@ Before opening a pull request, confirm the following:
 Open a GitHub issue and include the following information:
 
 1. **Chrome version** — from `chrome://version`.
-2. **Extension version** — from `chrome://extensions` (currently 1.0.0).
+2. **Extension version** — from `chrome://extensions` (currently 1.9.0).
 3. **Operating system** — name and version.
 4. **URL of the affected page** — or a minimal reproduction if the original is private.
 5. **Steps to reproduce** — numbered, specific, starting from a fresh page load.

@@ -16,6 +16,7 @@ Runtime state (current mode, time-saved statistics) is stored separately in
 - [silenceThreshold](#silencethreshold)
 - [silenceDelay](#silencedelay)
 - [showOverlay](#showoverlay)
+- [showSystemNotifications](#showsystemnotifications)
 - [activeMode](#activemode)
 - [excludedDomains](#excludeddomains)
 - [Storage Schema](#storage-schema)
@@ -31,7 +32,8 @@ Runtime state (current mode, time-saved statistics) is stored separately in
 | `fastRate` | number | `1.75` | `1.0` | `4.0` | `0.25` | Playback rate during detected silence |
 | `silenceThreshold` | number | `0.01` | `0.001` | `0.05` | `0.001` | RMS amplitude below which audio is treated as silent |
 | `silenceDelay` | number | `500` | `100` | `2000` | `50` | Milliseconds of continuous silence before speed increases |
-| `showOverlay` | boolean | `false` | — | — | — | Show on-video toast notification when fast mode activates |
+| `showOverlay` | boolean | `false` | — | — | — | Show on-video toast notification when fast mode activates / video ends |
+| `showSystemNotifications` | boolean | `false` | — | — | — | Send a system notification when the video ends with >10 s saved |
 | `activeMode` | string | `'balanced'` | — | — | — | Selected acceleration mode preset (`'comfort'`, `'balanced'`, or `'turbo'`) |
 | `excludedDomains` | string[] | `[]` | — | — | — | Hostnames where the plugin is disabled (e.g. `["www.example.com"]`) |
 
@@ -223,6 +225,41 @@ normal use.
 - The toast position (`bottom: 60px; right: 20px`) may overlap with subtitles or player controls
   on some sites. There is no per-site position adjustment in this version.
 
+## showSystemNotifications
+
+**Type:** boolean
+**Default:** `false`
+
+### Purpose
+
+Controls whether a system notification is displayed when a video ends and the session savings
+exceed 10 seconds. The notification is sent from the background service worker via
+`chrome.notifications.create` and appears in the OS notification centre, separate from the
+browser window.
+
+### Effect
+
+- `false` — no system notification is sent.
+- `true` — when the content script sends a `VIDEO_ENDED` message after a video ends with
+  `sessionSaved > 10 s`, the background calls `chrome.notifications.create('svs-video-end', …)`.
+  Title: `"Smart Video Speed"`; body: `"Saved Xm Ys on last video. Today total: Zm."`. Any
+  previous notification with the same ID is replaced.
+
+### Requirements
+
+The `notifications` permission must be granted. Chrome may prompt the user once for permission
+when this toggle is first enabled. The permission is declared in `manifest.json`.
+
+### Edge cases
+
+- The notification fires only when `sessionSaved > 10 s` at video end to avoid spam on short
+  clips or videos where no silence was detected.
+- The notification body uses the session savings at the moment the `VIDEO_ENDED` message is
+  received. Any unsent delta from the final stats interval is included via the synchronous flush
+  in the content script's `beforeunload` / `video.ended` handler.
+- On some platforms Chrome may not show the notification if the OS notification centre is
+  set to "Do not disturb" or if the notification permission is denied at the OS level.
+
 ## activeMode
 
 **Type:** string
@@ -316,6 +353,7 @@ Written and read by `popup.js`. Applied in `content_script.js` via `chrome.stora
   "silenceThreshold": 0.01,
   "silenceDelay": 500,
   "showOverlay": false,
+  "showSystemNotifications": false,
   "activeMode": "balanced",
   "excludedDomains": []
 }
@@ -382,12 +420,15 @@ Each extension has its own isolated storage area, so this only affects Smart Vid
 
 ## Resetting Statistics
 
-### Via the popup
+### Via the detailed statistics page
 
-Click the **Reset statistics** button in the Statistics section of the popup. A `confirm()` dialog
-asks for confirmation. On confirmation, a `RESET_STATS` message is sent to the background service
-worker, which immediately writes zeroed `savedTime` to `chrome.storage.local` and clears the
-toolbar badge. The popup updates all three counter rows to `—` via `chrome.storage.onChanged`.
+Click **📊 Detailed statistics** in the popup to open the statistics page, then click
+**Reset all statistics**. The button uses an inline two-step confirmation: on the first click it
+turns orange and reads "Tap again to confirm"; a second click within 3 seconds sends a
+`RESET_STATS` message to the background service worker, which immediately writes zeroed
+`savedTime`, `weeklyStats`, and `domainStats` to `chrome.storage.local` and clears the toolbar
+badge. The button briefly shows "Statistics cleared ✓" in green before reverting to its idle
+state. Clicking elsewhere or waiting more than 3 seconds cancels the operation.
 
 ### Via the Chrome DevTools console
 

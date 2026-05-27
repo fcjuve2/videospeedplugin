@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-05-27
+
+### Added
+
+- **`icon32.png` registered** — `manifest.json` now declares a 32 × 32 px icon in both the
+  top-level `icons` map and `action.default_icon`, removing the stretched 16 px icon in some
+  OS / HiDPI contexts.
+- **CSS-only inline tooltips** — every setting label in the popup now shows a ⓘ pseudo-element
+  and, after a 500 ms hover delay, a tooltip explaining that setting. Implemented entirely in CSS:
+  base state has `transition: opacity 0s 0s` (instant hide on mouse-out); hover state has
+  `transition: opacity 0.2s ease 0.5s` (500 ms delay then 200 ms fade-in). No JavaScript involved.
+  The site-exclusion label explicitly suppresses the ⓘ icon (`content: none !important`).
+- **Options page branded header** — `options.html` now renders a `<header>` outside the scrollable
+  container with the extension icon (48 px), the title "Smart Video Speed", and the sub-label
+  "Statistics". A `<link rel="icon">` makes the browser tab show the extension icon.
+- **Centred hotkey overlay** — `showCommandToast` replaced by `showHotkeyOverlay` in
+  `content_script.js`. The overlay is a 240 px wide fixed `<div>` centred on the viewport
+  (`position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%)`) with an icon, title,
+  and sub-text line. It animates in from `scale(0.85)` to `scale(1)` via `requestAnimationFrame`
+  and fades out after 1800 ms. If the overlay is already visible when the hotkey fires again, the
+  hide timer is reset — no flicker.
+
+### Changed
+
+- `manifest.json` version bumped to `1.9.0`.
+
+## [1.8.1] - 2026-05-27
+
+### Changed
+
+- **Chart and Reset statistics moved to options page** — the compact weekly bar chart, the
+  `resetStatsBtn`, and the two-step inline confirmation state machine have been removed from the
+  popup entirely and now live exclusively on the detailed statistics page (`options.html` /
+  `options.js`). This reduces popup height by ~143 px (chart card ~79 px + reset button ~48 px +
+  old details link ~16 px) and eliminates the popup scrollbar without relying on a hard-coded
+  `min-height`.
+- **Popup `min-height` removed** — the popup is now self-sizing. Body has `overflow: hidden` and
+  all spacing is tuned so the content fits within Chrome's ~600 px popup height on any platform
+  without a scrollbar.
+- **`📊 Detailed statistics` card** — the plain text "Detailed statistics ›" link in the popup
+  has been replaced with a styled card button (`a.stats-link`) with a chevron arrow and hover
+  highlight, providing a clearer entry point to the options page.
+- Options page (`options.js`) now owns the full chart render (`renderFullChart`) and the
+  two-step `resetStatsBtn` state machine (idle → confirming → cleared).
+- `popup.js` no longer imports `renderWeekChart`, references `weeklyStats`, or manages the
+  reset-stats phase state.
+
 ## [1.8.0] - 2026-05-27
 
 ### Added
@@ -18,8 +65,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     delay) are applied immediately.
   - Both commands are implemented via the Chrome Commands API (`chrome.commands.onCommand`) in the
     background service worker and forwarded to the active tab's content script.
-  - A new `showCommandToast` function in `content_script.js` renders a dismissing overlay in the
-    top-right corner of the page (not over the video) for 2 seconds.
+  - A `showCommandToast` function in `content_script.js` renders a dismissing overlay for 2
+    seconds (superseded by the centred `showHotkeyOverlay` in v1.9.0).
 - **Automatic dark / light theme** — the popup now responds to `prefers-color-scheme` without any
   user setting. All colours are defined as CSS custom properties on `:root` and overridden in an
   `@media (prefers-color-scheme: light)` block. Dark theme is identical to the previous appearance.
@@ -38,8 +85,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Popup `body` minimum height raised to `780 px` with `overflow: hidden` to avoid the browser
-  adding a scrollbar on typical screen sizes.
+- Popup `body` minimum height raised to `780 px` with `overflow: hidden` to reduce scrollbar
+  likelihood on typical screen sizes (subsequently removed in v1.8.1 in favour of layout tuning).
 - Container padding tightened to `14px 16px` (uniform) to reduce vertical space consumption.
 - `manifest.json` version bumped to `1.8.0`.
 

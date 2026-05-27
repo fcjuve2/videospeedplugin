@@ -9,35 +9,45 @@
 - [Manual Override Pause](#manual-override-pause)
 - [Time-Saved Statistics](#time-saved-statistics)
 - [Settings Propagation](#settings-propagation)
+- [Keyboard Shortcuts](#keyboard-shortcuts)
 - [Error Handling](#error-handling)
 - [Constraints and Design Decisions](#constraints-and-design-decisions)
 
 ## System Overview
 
-The extension has three execution contexts: the **content script**, the **background service
-worker**, and the **popup**. The content script and popup never communicate directly — all
-coordination passes through `chrome.storage` and `chrome.runtime.sendMessage` via the background.
+The extension has four execution contexts: the **content script**, the **background service
+worker**, the **popup**, and the **detailed statistics page**. The content script and popup never
+communicate directly — all coordination passes through `chrome.storage` and
+`chrome.runtime.sendMessage` via the background.
 
 ```mermaid
 flowchart TD
     subgraph Popup["Popup (popup.html / popup.js)"]
-        UI["UI Controls\n(sliders, toggles, reset)"]
+        UI["UI Controls\n(sliders, toggles)"]
         MS["Acceleration Mode Selector\n(Comfort / Balanced / Turbo)"]
         SE["Site Exclusion Toggle\n(per-domain)"]
         MI["Mode Indicator"]
         STATS["Statistics Section\n(session / today / total)"]
-        RSTBTN["Reset Statistics Button"]
+        SLINK["📊 Detailed statistics card"]
+    end
+
+    subgraph Options["Options Page (options.html / options.js)"]
+        CHART["Full weekly bar chart\n(SVG, 7 days)"]
+        TABLE["Per-site table"]
+        RSTBTN["Reset Statistics Button\n(two-step inline confirmation)"]
     end
 
     subgraph Background["Background Service Worker (background.js)"]
-        MSG["onMessage handler\nUPDATE_STATS / RESET_STATS"]
+        MSG["onMessage handler\nUPDATE_STATS / RESET_STATS / VIDEO_ENDED"]
+        CMD["chrome.commands.onCommand\ntoggle-plugin / cycle-mode"]
         BADGE["chrome.action\n.setBadgeText / setBadgeBackgroundColor"]
         DW["Storage write\n(on every message)"]
+        NOTIF["chrome.notifications.create\n(video-end system notification)"]
     end
 
     subgraph Storage["Chrome Storage"]
-        SYNC["chrome.storage.sync\nenabled, normalRate, fastRate,\nsilenceThreshold, silenceDelay,\nshowOverlay, activeMode,\nexcludedDomains"]
-        LOCAL["chrome.storage.local\ncurrentMode\nsavedTime { session, today, total, todayDate }"]
+        SYNC["chrome.storage.sync\nenabled, normalRate, fastRate,\nsilenceThreshold, silenceDelay,\nshowOverlay, showSystemNotifications,\nactiveMode, excludedDomains"]
+        LOCAL["chrome.storage.local\ncurrentMode\nsavedTime { session, today, total, todayDate }\nweeklyStats [ { date, savedSeconds } ]\ndomainStats { hostname: { savedSeconds, sessions } }"]
     end
 
     subgraph ContentScript["Content Script (content_script.js)"]
@@ -51,7 +61,8 @@ flowchart TD
         OVR["Manual Override Pause\n(ratechange → 10 s freeze)"]
         PBR["video.playbackRate"]
         ACCUM["Stats Accumulator\nsessionSaved += Δt × (fast−normal)/fast"]
-        TOAST["Overlay Toast\n(optional)"]
+        TOAST["Overlay Toast\n(optional, on-video)"]
+        HOV["Hotkey Overlay\nshowHotkeyOverlay\n(centred, scale+fade)"]
         ONC["chrome.storage.onChanged\n(settings)"]
     end
 
@@ -61,14 +72,19 @@ flowchart TD
     SYNC -->|onChanged| ONC
     ONC --> SC
 
-    UI -->|sendMessage RESET_STATS| MSG
+    RSTBTN -->|sendMessage RESET_STATS| MSG
     MSG -->|clear| LOCAL
     MSG -->|clear| BADGE
+    MSG -->|sendMessage RESET_STATS to tab| ContentScript
 
     LOCAL -->|read on open| MI
     LOCAL -->|read on open| STATS
     LOCAL -->|onChanged| MI
     LOCAL -->|onChanged| STATS
+    LOCAL -->|read on open| CHART
+    LOCAL -->|read on open| TABLE
+
+    SLINK -->|openOptionsPage| Options
 
     ContentScript -->|write currentMode| LOCAL
 
@@ -84,23 +100,31 @@ flowchart TD
     SC -->|mode = fast| ACCUM
     SC -->|mode = fast + showOverlay| TOAST
     ACCUM -->|sendMessage UPDATE_STATS every 5 s| MSG
+    ContentScript -->|sendMessage VIDEO_ENDED| MSG
     MSG --> DW
     DW --> LOCAL
     MSG --> BADGE
+    MSG -->|showSystemNotifications| NOTIF
+
+    CMD -->|read/write SYNC| SYNC
+    CMD -->|sendMessage TOGGLE_PLUGIN\nor CYCLE_MODE to tab| HOV
 ```
 
 ## File Structure
 
 | File | Responsibility |
 | --- | --- |
-| `manifest.json` | Extension metadata, permissions (`storage`, `activeTab`, `tabs`), background service worker declaration, content script injection rules, icon declarations |
-| `content_script.js` | Audio graph management, RMS analysis loop, speed control, seek reset, manual override pause, site exclusion check, time-saved accumulation, stats messaging, optional overlay toast, video discovery, settings listener, page lifecycle cleanup |
-| `background.js` | Receives `UPDATE_STATS` and `RESET_STATS` messages; persists statistics to `chrome.storage.local` on every stats message; manages toolbar badge text and colour |
-| `popup.html` | Popup markup — toggle, mode indicator, acceleration mode selector (segmented control), five setting controls, reset button, divider, statistics section |
-| `popup.js` | Popup logic — reads/writes `chrome.storage.sync`, applies acceleration mode presets, syncs sliders with number inputs, detects preset modifications, manages site exclusion toggle, updates mode indicator and statistics via `chrome.storage.local`, sends `RESET_STATS` to background |
-| `popup.css` | Dark-theme styles for the popup; 320 px fixed width; flat flex layout for slider rows; segmented control styles with per-mode active colours; divider and statistics section styles |
-| `generate_icons.js` | Build-time helper that generates `icons/icon{16,48,128}.png` from an SVG source using `sharp` |
-| `icons/` | PNG icon assets at three sizes |
+| `manifest.json` | Extension metadata, permissions (`storage`, `activeTab`, `tabs`, `notifications`), background service worker declaration, content script injection rules, icon declarations (16/32/48/128 px), `commands` block for keyboard shortcuts |
+| `content_script.js` | Audio graph management, RMS analysis loop, speed control, seek reset, manual override pause, site exclusion check, time-saved accumulation, stats messaging, optional on-video overlay toast, centred hotkey overlay (`showHotkeyOverlay`), video-end notification trigger, video discovery, settings listener, page lifecycle cleanup |
+| `background.js` | Receives `UPDATE_STATS`, `RESET_STATS`, and `VIDEO_ENDED` messages; persists statistics to `chrome.storage.local`; manages toolbar badge; sends system notifications; handles `chrome.commands.onCommand` for keyboard shortcuts and forwards them to the active tab |
+| `popup.html` | Popup markup — toggle, mode indicator, acceleration mode selector (segmented control), seven setting rows (all with CSS tooltip wrappers), reset-to-defaults button, divider, statistics section, 📊 Detailed statistics card button |
+| `popup.js` | Popup logic — reads/writes `chrome.storage.sync`, applies acceleration mode presets, syncs sliders with number inputs, detects preset modifications, manages site exclusion toggle, updates mode indicator and statistics via `chrome.storage.local`; no chart rendering or reset-stats logic |
+| `popup.css` | Full CSS-custom-property theme (dark default + `prefers-color-scheme: light` override); 320 px fixed width; flat flex layout for slider rows; tooltip system (CSS-only 500 ms show delay, instant hide); segmented control styles; stats card-link styles |
+| `options.html` | Detailed statistics page markup — branded header (icon + title), summary cards, full SVG chart, per-site table, Reset statistics button |
+| `options.js` | Options page logic — renders full 7-day bar chart via `getComputedStyle` CSS var injection; renders per-site domain table; manages two-step `resetStatsBtn` state machine (idle → confirming → cleared) |
+| `options.css` | Options page styles — CSS custom properties (dark + light), summary cards, chart wrapper, domain table, Reset statistics button states (`.confirming`, `.cleared`) |
+| `generate_icons.js` | Build-time helper that generates `icons/icon{16,32,48,128}.png` from an SVG source using `sharp` |
+| `icons/` | PNG icon assets at four sizes (16, 32, 48, 128 px) |
 | `docs/` | Architecture and configuration reference |
 
 ## Audio Pipeline
@@ -219,13 +243,35 @@ updated before applying the new delta.
 | < 60 s | `"45s"` | `#888888` (grey) |
 | ≥ 60 s | `"1:23"` | `#27AE60` (green) if `isFast`, else `#888888` |
 
-### Overlay toast
+### On-video overlay toast
 
 When `settings.showOverlay` is `true`, `showSavedToast(sessionSaved)` is called each time the
-mode transitions to `'fast'`. The toast is a `position: fixed` `<div>` injected into the page
-body at `bottom: 60px; right: 20px` with `z-index: 2147483647`. It displays for 2 seconds then
-fades out over 0.5 seconds via a CSS `opacity` transition. Only one toast is shown at a time;
-a new transition cancels any in-progress toast.
+mode transitions to `'fast'` and when the video ends with sufficient savings. The toast is a
+`position: fixed` `<div>` injected into the page body at `bottom: 60px; right: 20px` with
+`z-index: 2147483647`. It displays for 2 seconds then fades out over 0.5 seconds via a CSS
+`opacity` transition. Only one toast is shown at a time; a new transition cancels any in-progress
+toast.
+
+### Hotkey overlay
+
+`showHotkeyOverlay({ icon, title, sub })` is called by the content script's `chrome.runtime
+.onMessage` listener when the background forwards a `TOGGLE_PLUGIN` or `CYCLE_MODE` command.
+The overlay is a 240 px wide fixed `<div>` with `position: fixed; top: 50%; left: 50%;
+transform: translate(-50%, -50%); z-index: 2147483647; pointer-events: none` — centred on the
+viewport and non-interactive. It contains three elements: `.svs-ov-icon` (large emoji or symbol),
+`.svs-ov-title` (extension name), and `.svs-ov-sub` (state or mode name).
+
+Animation:
+1. Before first show, the element starts at `opacity: 0; transform: translate(-50%,-50%)
+   scale(0.85); transition: opacity 0.25s ease, transform 0.25s ease`.
+2. On each invocation, `requestAnimationFrame` sets `opacity: 1; transform: translate(-50%,-50%)
+   scale(1)` — the rAF skip ensures the browser applies the start state first, so the element
+   always animates in from the smaller scale.
+3. After 1800 ms, a `setTimeout` fades it out to `opacity: 0; scale(0.9)`.
+
+If the hotkey is fired while the overlay is still visible, `clearTimeout(overlayTimer)` resets
+the hide timer without triggering a new animation (the element is already at scale 1, so no
+flicker occurs).
 
 ## Speed Control
 
@@ -410,19 +456,57 @@ content_script.js accumulates sessionSaved on each fast-mode tick
         -> renderStats() updates the three counter rows
 ```
 
-### Statistics reset (popup → background)
+### Statistics reset (options page → background → content script)
 
 ```
-User clicks "Reset statistics" and confirms
-  -> popup.js calls chrome.runtime.sendMessage(RESET_STATS)
-    -> background.js writes zeroed savedTime to chrome.storage.local immediately
+User clicks "Reset all statistics" on the options page and confirms (second click within 3 s)
+  -> options.js calls chrome.runtime.sendMessage(RESET_STATS)
+    -> background.js writes zeroed savedTime, weeklyStats, domainStats to chrome.storage.local
     -> background.js clears the toolbar badge
-      -> chrome.storage.onChanged fires in popup.js
+    -> background.js forwards RESET_STATS to the active tab's content script
+      -> content_script.js resets sessionSaved / lastSentSaved / sessionStartSent to 0
+      -> chrome.storage.onChanged fires in popup.js (if open)
         -> renderStats() updates counters to "—"
 ```
 
 `chrome.storage.local` is used for runtime state (mode, statistics) because it is device-local
 (not synced), has a larger quota than `sync`, and does not require the user to be signed in.
+
+## Keyboard Shortcuts
+
+Two keyboard commands are registered via the Chrome Commands API in `manifest.json`:
+
+| Command name | Suggested key | Action |
+| --- | --- | --- |
+| `toggle-plugin` | `Alt+Shift+S` | Toggle `enabled` on/off |
+| `cycle-mode` | `Alt+Shift+M` | Advance `activeMode`: Comfort → Balanced → Turbo → Comfort |
+
+### Flow
+
+```
+User presses Alt+Shift+S or Alt+Shift+M
+  -> chrome.commands.onCommand fires in background.js
+    -> for toggle-plugin:
+         reads chrome.storage.sync.enabled
+         writes !enabled back to sync
+         sends TOGGLE_PLUGIN { enabled: newValue } to active tab
+    -> for cycle-mode:
+         reads chrome.storage.sync.activeMode
+         advances index in ['comfort', 'balanced', 'turbo']
+         applies preset (fastRate, silenceThreshold, silenceDelay) for new mode
+         writes activeMode + preset values to chrome.storage.sync
+         sends CYCLE_MODE { mode: newMode } to active tab
+      -> content_script.js onMessage listener calls showHotkeyOverlay(...)
+         (mode change or enable/disable state confirmed visually in the page)
+      -> chrome.storage.onChanged fires in content_script.js
+         (settings applied immediately; if disabled, speed is restored)
+      -> chrome.storage.onChanged fires in popup.js if open
+         (mode indicator + mode buttons re-render)
+```
+
+Shortcuts can be reassigned by the user at `chrome://extensions/shortcuts`. The background
+command handler reads the current settings from `chrome.storage.sync` on each invocation — no
+in-memory state is required.
 
 ## Error Handling
 

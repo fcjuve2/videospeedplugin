@@ -2,7 +2,7 @@
 
 Automatically speeds up silent parts of videos using real-time audio analysis.
 
-![Version](https://img.shields.io/badge/version-1.8.0-blue)
+![Version](https://img.shields.io/badge/version-1.9.0-blue)
 ![Manifest](https://img.shields.io/badge/manifest-v3-green)
 ![License](https://img.shields.io/badge/license-MIT-brightgreen)
 ![Platform](https://img.shields.io/badge/platform-Chrome-yellow)
@@ -47,11 +47,11 @@ as audio resumes, the rate returns to normal — smoothly, without jarring jumps
   site; excluded domains are stored in `chrome.storage.sync` and sync across Chrome profiles
 - **Manual override pause** — when the user changes playback speed manually, auto-control yields
   for 10 seconds then resumes automatically; popup shows `⏸ Paused (manual override)`
-- **Weekly time chart** — compact 7-bar SVG chart in the popup; full chart with Y-axis, date
-  labels, and summary cards (This week / Daily average / Best day) on the detailed statistics page
+- **Detailed statistics page** — full 7-day SVG bar chart with Y-axis, date labels, and summary
+  cards (This week / Daily average / Best day); opened via a card button in the popup
 - **Per-site statistics** — options page table (Site / Saved / Sessions / Avg per session),
   sorted by savings, top-3 rows highlighted with gold/silver/bronze accents
-- **Video-end notification** — when a video ends with >10 s saved, optionally shows a centered
+- **Video-end notification** — when a video ends with >10 s saved, optionally shows a centred
   on-video toast and/or a system notification with session savings and today's total
 - MutationObserver-based video discovery — works with dynamically inserted video elements (SPAs)
 - Graceful handling of cross-origin and DRM-protected videos with a non-intrusive banner notice
@@ -59,15 +59,18 @@ as audio resumes, the rate returns to normal — smoothly, without jarring jumps
 - Time-saved counter — tracks how many seconds were saved per video, today, and all time
 - Toolbar badge showing accumulated time saved for the current video (updates every 5 seconds)
 - **Keyboard shortcuts** — `Alt+Shift+S` toggles the extension on/off, `Alt+Shift+M` cycles
-  through acceleration modes (Comfort → Balanced → Turbo); both show a brief page toast confirming
-  the action; shortcuts are reassignable via `chrome://extensions/shortcuts`
-- **Automatic dark / light theme** — all popup colours are CSS custom properties; the popup follows
-  the OS theme via `prefers-color-scheme` without any additional setting
-- **Rounded UI** — all major elements (container, buttons, inputs, chart card, toggles) have
-  consistent rounded corners for a modern look
-- **Two-step reset confirmation** — the Reset statistics button requires a second click within
-  3 seconds to execute; inactivity reverts it automatically, preventing accidental data loss
-- Reset-to-defaults and Reset statistics buttons
+  through acceleration modes (Comfort → Balanced → Turbo); both display a large centred overlay
+  confirming the action; shortcuts are reassignable via `chrome://extensions/shortcuts`
+- **Inline tooltips** — hovering any setting label for 500 ms shows a tooltip explaining that
+  setting; tooltips disappear instantly on mouse-out; implemented in pure CSS with no JavaScript
+- **Automatic dark / light theme** — all popup and options-page colours are CSS custom properties;
+  both UIs follow the OS theme via `prefers-color-scheme` without any additional setting
+- **Rounded UI** — all major elements (container, buttons, inputs, toggles) have consistent
+  rounded corners for a modern look
+- **Two-step reset confirmation** — the Reset statistics button (on the detailed statistics page)
+  requires a second click within 3 seconds to execute; inactivity reverts it automatically,
+  preventing accidental data loss
+- Reset-to-defaults button in the popup; Reset statistics button on the detailed statistics page
 
 ## Screenshots / UI
 
@@ -80,10 +83,10 @@ following elements, top to bottom:
 | Enable toggle | Toggle switch | Enables or disables automatic speed control |
 | Mode indicator | Status badge | Shows "Normal speed", "Fast speed", "⏸ Paused (manual override)", or "Disabled" |
 | Acceleration mode selector | Segmented control (3 buttons) | One-click presets: Comfort, Balanced, Turbo. Active mode is highlighted; shows `•` when manually modified |
-| Normal rate | Range slider + number input | Sets playback speed during voiced segments (0.5× – 2.0×) |
-| Fast rate | Range slider + number input | Sets playback speed during silent segments (1.0× – 4.0×) |
-| Silence threshold | Number input | RMS amplitude below which audio is considered silent (0.001 – 0.05) |
-| Silence delay | Number input | Milliseconds of continuous silence before switching to fast speed (100 – 2000 ms) |
+| Normal rate | Range slider + number input | Sets playback speed during voiced segments (0.5× – 2.0×). Hover the label for a tooltip. |
+| Fast rate | Range slider + number input | Sets playback speed during silent segments (1.0× – 4.0×). Hover the label for a tooltip. |
+| Silence threshold | Number input | RMS amplitude below which audio is considered silent (0.001 – 0.05). Hover the label for a tooltip. |
+| Silence delay | Number input | Milliseconds of continuous silence before switching to fast speed (100 – 2000 ms). Hover the label for a tooltip. |
 | Show overlay | Toggle switch | Enables on-video toast when fast mode activates and when the video ends |
 | End notification | Toggle switch | Enables a system notification when the video ends (default: off) |
 | Exclude this site | Toggle switch (red) | Disables the extension for the current domain |
@@ -92,9 +95,7 @@ following elements, top to bottom:
 | Time saved — Current video | Read-only value | Seconds saved since the current page was loaded |
 | Time saved — Today | Read-only value | Cumulative seconds saved since midnight |
 | Time saved — All time | Read-only value | Cumulative seconds saved since installation |
-| Weekly chart | SVG bar chart (in chart card) | 7-day history; today's bar highlighted in blue; hover for exact values; adapts to dark/light theme |
-| Detailed statistics | Link | Opens the full statistics page in a new tab |
-| Reset statistics | Button | Two-step inline confirmation; turns orange on first click, executes on second click within 3 s |
+| 📊 Detailed statistics | Card button | Opens the full statistics page (chart + per-site table + reset button) in a new tab |
 
 ## Installation
 
@@ -137,14 +138,13 @@ once it is available.
 | End notification | When enabled, a system notification appears when the video ends with >10 s saved. Default: off. |
 | Exclude this site | Disables the extension on the current domain. Toggle it off to re-enable (requires page reload). |
 | Reset to defaults | Restores all settings to their factory values immediately. |
-| Reset statistics | Two-step confirmation: first click shows warning; second click within 3 s clears all counters. |
 
 ### Keyboard shortcuts
 
 | Shortcut | Default keys | Action |
 | --- | --- | --- |
-| Toggle on/off | `Alt+Shift+S` | Enables or disables the extension; a brief toast confirms the new state |
-| Cycle mode | `Alt+Shift+M` | Cycles through Comfort → Balanced → Turbo → Comfort; a brief toast shows the new mode |
+| Toggle on/off | `Alt+Shift+S` | Enables or disables the extension; a large centred overlay confirms the new state |
+| Cycle mode | `Alt+Shift+M` | Cycles through Comfort → Balanced → Turbo → Comfort; a large centred overlay shows the new mode |
 
 Shortcuts can be reassigned at `chrome://extensions/shortcuts`.
 
@@ -152,11 +152,12 @@ Settings take effect in the active tab within milliseconds via `chrome.storage.o
 
 ### Detailed statistics page
 
-Click **Detailed statistics ›** in the popup to open the full statistics page. It shows:
+Click the **📊 Detailed statistics** card in the popup to open the full statistics page. It shows:
 
 - A full bar chart of time saved per day for the last 7 days, with Y-axis in minutes and date labels
 - Summary cards: This week / Daily average / Best day
 - A per-site breakdown table with columns: Site / Saved / Sessions / Avg per session
+- A **Reset statistics** button with two-step inline confirmation (turns orange on first click, executes on second click within 3 s)
 
 ### Toolbar badge
 
@@ -240,17 +241,23 @@ changes at Web Audio render-quantum boundaries.
 
 ## Architecture Overview
 
-The extension has three execution contexts: the **content script**, the **background service
-worker**, and the **popup**. The content script performs audio analysis, accumulates time-saved
-statistics, and handles video lifecycle events (seek, end, manual rate change). Every 5 seconds
-it forwards a delta value and metadata (hostname, session flag) to the background service worker
-via `chrome.runtime.sendMessage`. The background persists `savedTime`, `weeklyStats`, and
-`domainStats` to `chrome.storage.local` on every stats message and updates the toolbar badge.
-The popup reads from both `chrome.storage.sync` (settings) and `chrome.storage.local` (statistics,
-current mode) on open and reflects live updates via `chrome.storage.onChanged`.
+The extension has four execution contexts: the **content script**, the **background service
+worker**, the **popup**, and the **detailed statistics page**. The content script performs audio
+analysis, accumulates time-saved statistics, and handles video lifecycle events (seek, end, manual
+rate change). Every 5 seconds it forwards a delta value and metadata (hostname, session flag) to
+the background service worker via `chrome.runtime.sendMessage`. The background persists
+`savedTime`, `weeklyStats`, and `domainStats` to `chrome.storage.local` on every stats message
+and updates the toolbar badge. It also handles keyboard shortcut commands (`chrome.commands
+.onCommand`) and forwards them to the active tab's content script.
 
-The **detailed statistics page** (`options.html`) is opened in a new tab and reads directly from
-`chrome.storage.local`, rendering the full weekly chart and per-site table.
+The popup reads from both `chrome.storage.sync` (settings) and `chrome.storage.local` (statistics,
+current mode) on open and reflects live updates via `chrome.storage.onChanged`. The popup no
+longer contains a chart or reset-statistics button — those live exclusively on the detailed
+statistics page.
+
+The **detailed statistics page** (`options.html`) is opened in a new tab via the 📊 card button
+and reads directly from `chrome.storage.local`, rendering the full weekly chart, per-site table,
+and the two-step Reset statistics button.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full component diagram, audio pipeline
 description, and design decisions.
