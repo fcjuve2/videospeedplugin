@@ -8,7 +8,8 @@
 </head>
 <body>
   <div class="container">
-    <h1 class="title">Time saved — last 7 days</h1>
+    <h1 class="title">Detailed Statistics</h1>
+    <h2 class="section-title section-title--top">Time saved — last 7 days</h2>
 
     <div class="summary">
       <div class="summary-item">
@@ -48,6 +49,13 @@
         </thead>
         <tbody id="domainTableBody"></tbody>
       </table>
+    </div>
+
+    <hr class="divider" />
+
+    <div class="reset-section">
+      <button id="resetStatsBtn" class="reset-stats-btn">Reset all statistics</button>
+      <p class="reset-hint">Clears current-video, today, all-time, weekly chart, and per-site counters.</p>
     </div>
   </div>
 

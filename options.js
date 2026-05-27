@@ -85,6 +85,16 @@ function renderFullChart(days) {
   const svg = document.getElementById('fullChart');
   if (!svg) return;
 
+  // Read theme colours from CSS custom properties
+  const rs = getComputedStyle(document.documentElement);
+  const clrGrid       = rs.getPropertyValue('--chart-grid').trim()        || '#1e1e30';
+  const clrAxis       = rs.getPropertyValue('--chart-axis').trim()        || '#333';
+  const clrLabel      = rs.getPropertyValue('--chart-label').trim()       || '#555';
+  const clrBarOther   = rs.getPropertyValue('--chart-bar').trim()         || '#2a2a56';
+  const clrBarToday   = rs.getPropertyValue('--chart-today').trim()       || '#2E75B6';
+  const clrLblToday   = rs.getPropertyValue('--chart-today-label').trim() || '#7ab4ff';
+  const clrValLabel   = rs.getPropertyValue('--chart-val-label').trim()   || '#888';
+
   // Logical SVG dimensions (scaled to 100% width via viewBox + CSS)
   const SVG_W = 540;
   const SVG_H = 300;
@@ -110,14 +120,14 @@ function renderFullChart(days) {
     const val = (t / TICKS) * yMax;
     const y   = MT + CH - (t / TICKS) * CH;
     parts.push(
-      `<line x1="${ML}" y1="${y.toFixed(1)}" x2="${ML + CW}" y2="${y.toFixed(1)}" stroke="#1e1e30" stroke-width="1"/>`,
-      `<text x="${(ML - 6).toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="end" fill="#555" font-size="10" font-family="sans-serif">${formatYLabel(val)}</text>`,
+      `<line x1="${ML}" y1="${y.toFixed(1)}" x2="${ML + CW}" y2="${y.toFixed(1)}" stroke="${clrGrid}" stroke-width="1"/>`,
+      `<text x="${(ML - 6).toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="end" fill="${clrLabel}" font-size="10" font-family="sans-serif">${formatYLabel(val)}</text>`,
     );
   }
 
   // Y-axis spine
   parts.push(
-    `<line x1="${ML}" y1="${MT}" x2="${ML}" y2="${MT + CH}" stroke="#333" stroke-width="1"/>`,
+    `<line x1="${ML}" y1="${MT}" x2="${ML}" y2="${MT + CH}" stroke="${clrAxis}" stroke-width="1"/>`,
   );
 
   // Bars + X-axis labels
@@ -126,20 +136,21 @@ function renderFullChart(days) {
     const frac  = yMax > 0 ? day.savedSeconds / yMax : 0;
     const barH  = day.savedSeconds > 0 ? Math.max(2, frac * CH) : 0;
     const barY  = MT + CH - barH;
-    const fill  = day.isToday ? '#2E75B6' : '#2a2a56';
+    const fill  = day.isToday ? clrBarToday : clrBarOther;
     const cx    = x + barW / 2;
     const label = formatXLabel(day.date);
     const tip   = day.savedSeconds > 0 ? formatTime(day.savedSeconds) : '0s';
+    const xLbl  = day.isToday ? clrLblToday : clrLabel;
 
     parts.push(
       `<rect x="${x.toFixed(1)}" y="${barY.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" fill="${fill}" rx="3"><title>${day.date}: ${tip}</title></rect>`,
-      `<text x="${cx.toFixed(1)}" y="${(MT + CH + MB - 7).toFixed(1)}" text-anchor="middle" fill="${day.isToday ? '#7ab4ff' : '#555'}" font-size="10" font-family="sans-serif">${label}</text>`,
+      `<text x="${cx.toFixed(1)}" y="${(MT + CH + MB - 7).toFixed(1)}" text-anchor="middle" fill="${xLbl}" font-size="10" font-family="sans-serif">${label}</text>`,
     );
 
     // Value label above the bar (only when bar is tall enough to avoid overlap)
     if (barH >= 18 && day.savedSeconds > 0) {
       parts.push(
-        `<text x="${cx.toFixed(1)}" y="${(barY - 5).toFixed(1)}" text-anchor="middle" fill="${day.isToday ? '#7ab4ff' : '#888'}" font-size="9" font-family="sans-serif">${formatTime(day.savedSeconds)}</text>`,
+        `<text x="${cx.toFixed(1)}" y="${(barY - 5).toFixed(1)}" text-anchor="middle" fill="${day.isToday ? clrLblToday : clrValLabel}" font-size="9" font-family="sans-serif">${formatTime(day.savedSeconds)}</text>`,
       );
     }
   });
@@ -180,9 +191,52 @@ function renderDomainTable(domainStats) {
   }).join('');
 }
 
+// ── Per-site clear button ─────────────────────────────────────────────────────
+
 document.getElementById('clearDomainBtn').addEventListener('click', () => {
   if (!confirm('Clear all per-site statistics? This cannot be undone.')) return;
   chrome.storage.local.set({ domainStats: {} });
+});
+
+// ── Reset all statistics (two-step confirmation) ──────────────────────────────
+
+const resetStatsBtn = document.getElementById('resetStatsBtn');
+let _resetPhase = 'idle'; // 'idle' | 'confirming'
+let _resetTimer = null;
+
+function _toIdle() {
+  _resetPhase = 'idle';
+  resetStatsBtn.textContent = 'Reset all statistics';
+  resetStatsBtn.classList.remove('confirming', 'cleared');
+}
+
+resetStatsBtn.addEventListener('click', () => {
+  if (_resetPhase === 'idle') {
+    _resetPhase = 'confirming';
+    resetStatsBtn.textContent = 'Tap again to confirm';
+    resetStatsBtn.classList.add('confirming');
+    _resetTimer = setTimeout(() => { _resetTimer = null; _toIdle(); }, 3000);
+  } else {
+    clearTimeout(_resetTimer);
+    _resetTimer = null;
+    _resetPhase = 'idle';
+
+    resetStatsBtn.textContent = 'Statistics cleared ✓';
+    resetStatsBtn.classList.remove('confirming');
+    resetStatsBtn.classList.add('cleared');
+
+    chrome.runtime.sendMessage({ type: 'RESET_STATS' }, () => {});
+
+    setTimeout(_toIdle, 500);
+  }
+});
+
+document.addEventListener('click', (e) => {
+  if (_resetPhase === 'confirming' && e.target !== resetStatsBtn) {
+    clearTimeout(_resetTimer);
+    _resetTimer = null;
+    _toIdle();
+  }
 });
 
 // ── Init ──────────────────────────────────────────────────────────────────────

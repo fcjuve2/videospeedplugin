@@ -42,7 +42,6 @@ const showSysNotifToggle     = $('showSystemNotifications');
 const excludeSiteToggle      = $('excludeSite');
 const excludeSiteLabel   = $('excludeSiteLabel');
 const resetBtn           = $('resetBtn');
-const resetStatsBtn      = $('resetStatsBtn');
 const statSession        = $('statSession');
 const statToday          = $('statToday');
 const statTotal          = $('statTotal');
@@ -132,67 +131,6 @@ function updateModeIndicator(modeOverride) {
       modeLabel.textContent   = 'Normal speed';
     }
   });
-}
-
-// ── Weekly chart ──────────────────────────────────────────────────────────────
-
-function renderWeekChart(weeklyStats) {
-  const svg = document.getElementById('weekChart');
-  if (!svg) return;
-
-  // Logical dimensions — SVG scales to 100 % width via CSS
-  const W       = 276; // chart-card has 6px side padding × 2 = 12px less
-  const CHART_H = 44;
-  const LABEL_H = 13;
-  const GAP     = 2;
-  const n       = 7;
-  const barW    = (W - GAP * (n - 1)) / n; // ≈ 37.4 px
-
-  const todayStr   = new Date().toISOString().slice(0, 10);
-  const DAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-
-  // Read theme colours from CSS custom properties
-  const rootStyle   = getComputedStyle(document.documentElement);
-  const barToday    = rootStyle.getPropertyValue('--accent-today').trim()  || '#2E75B6';
-  const barOther    = rootStyle.getPropertyValue('--bg-chart-bar').trim()  || '#2a2a42';
-  const labelToday  = rootStyle.getPropertyValue('--accent-blue').trim()   || '#7ab4ff';
-  const labelOther  = rootStyle.getPropertyValue('--text-hint').trim()     || '#555';
-
-  // Build full 7-day series (oldest first, fill missing days with 0)
-  const days = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const dateStr = d.toISOString().slice(0, 10);
-    const entry   = (weeklyStats || []).find((e) => e.date === dateStr);
-    days.push({ date: dateStr, savedSeconds: entry ? (entry.savedSeconds || 0) : 0 });
-  }
-
-  const maxVal = Math.max(...days.map((d) => d.savedSeconds), 1);
-  const parts  = [];
-
-  days.forEach((day, i) => {
-    const x       = i * (barW + GAP);
-    const frac    = day.savedSeconds / maxVal;
-    const barH    = day.savedSeconds > 0 ? Math.max(2, frac * CHART_H) : 0;
-    const barY    = CHART_H - barH;
-    const isToday = day.date === todayStr;
-    const fill    = isToday ? barToday : barOther;
-    const cx      = x + barW / 2;
-    const secs    = Math.floor(day.savedSeconds);
-    const tip     = secs > 0 ? formatTime(secs) : '0s';
-    const letter  = DAY_LETTERS[new Date(day.date + 'T12:00:00').getDay()];
-
-    parts.push(
-      `<rect x="${x.toFixed(1)}" y="${barY.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" fill="${fill}" rx="2"><title>${day.date}: ${tip}</title></rect>`,
-      `<text x="${cx.toFixed(1)}" y="${(CHART_H + LABEL_H - 1).toFixed(1)}" text-anchor="middle" fill="${isToday ? labelToday : labelOther}" font-size="9" font-family="sans-serif">${letter}</text>`,
-    );
-  });
-
-  svg.setAttribute('viewBox', `0 0 ${W} ${CHART_H + LABEL_H}`);
-  svg.setAttribute('width', '100%');
-  svg.setAttribute('height', CHART_H + LABEL_H);
-  svg.innerHTML = parts.join('');
 }
 
 // ── Acceleration mode helpers ─────────────────────────────────────────────────
@@ -342,58 +280,6 @@ resetBtn.addEventListener('click', () => {
   renderSettings();
 });
 
-// ── Event handlers — statistics ───────────────────────────────────────────────
-
-/** Two-step protection for the reset-statistics button. */
-let _resetStatsPhase = 'idle'; // 'idle' | 'confirming'
-let _resetStatsTimer = null;
-
-function _resetStatsToIdle() {
-  _resetStatsPhase = 'idle';
-  resetStatsBtn.textContent = 'Reset statistics';
-  resetStatsBtn.classList.remove('confirming', 'cleared');
-}
-
-resetStatsBtn.addEventListener('click', () => {
-  if (_resetStatsPhase === 'idle') {
-    // — First click: enter confirming state
-    _resetStatsPhase = 'confirming';
-    resetStatsBtn.textContent = 'Tap again to confirm';
-    resetStatsBtn.classList.add('confirming');
-
-    _resetStatsTimer = setTimeout(() => {
-      _resetStatsTimer = null;
-      _resetStatsToIdle();
-    }, 3000);
-
-  } else {
-    // — Second click within 3 s: execute reset
-    clearTimeout(_resetStatsTimer);
-    _resetStatsTimer = null;
-    _resetStatsPhase = 'idle';
-
-    resetStatsBtn.textContent = 'Statistics cleared ✓';
-    resetStatsBtn.classList.remove('confirming');
-    resetStatsBtn.classList.add('cleared');
-
-    chrome.runtime.sendMessage({ type: 'RESET_STATS' }, () => {
-      renderStats(DEFAULT_STATS);
-      renderWeekChart([]);
-    });
-
-    setTimeout(_resetStatsToIdle, 500);
-  }
-});
-
-// Cancel confirming state when clicking outside the button
-document.addEventListener('click', (e) => {
-  if (_resetStatsPhase === 'confirming' && e.target !== resetStatsBtn) {
-    clearTimeout(_resetStatsTimer);
-    _resetStatsTimer = null;
-    _resetStatsToIdle();
-  }
-});
-
 // ── React to live changes while popup is open ─────────────────────────────────
 
 chrome.storage.onChanged.addListener((changes, area) => {
@@ -403,9 +289,6 @@ chrome.storage.onChanged.addListener((changes, area) => {
     }
     if (changes.savedTime) {
       renderStats(changes.savedTime.newValue || DEFAULT_STATS);
-    }
-    if (changes.weeklyStats) {
-      renderWeekChart(changes.weeklyStats.newValue || []);
     }
   }
 });
@@ -436,12 +319,11 @@ chrome.storage.sync.get(DEFAULTS, (stored) => {
   renderSettings();
 });
 
-chrome.storage.local.get({ savedTime: DEFAULT_STATS, weeklyStats: [] }, (data) => {
+chrome.storage.local.get({ savedTime: DEFAULT_STATS }, (data) => {
   renderStats(data.savedTime);
-  renderWeekChart(data.weeklyStats);
 });
 
-document.getElementById('detailsLink').addEventListener('click', (e) => {
+document.getElementById('open-options').addEventListener('click', (e) => {
   e.preventDefault();
   chrome.runtime.openOptionsPage();
 });
