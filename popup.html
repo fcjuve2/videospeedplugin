@@ -31,76 +31,83 @@
 
     <section class="settings">
       <!-- Normal Rate -->
-      <div class="setting-row">
+      <div class="setting-row tooltip-wrapper">
         <label for="normalRate" class="setting-label">Normal rate</label>
         <input type="range" class="setting-slider" id="normalRateSlider"
                min="0.5" max="2.0" step="0.25" />
         <input type="number" class="setting-value" id="normalRate"
                min="0.5" max="2.0" step="0.25" />
         <span class="unit">&times;</span>
+        <span class="tooltip">Playback speed when the video has audible speech or sound.</span>
       </div>
 
       <!-- Fast Rate -->
-      <div class="setting-row">
+      <div class="setting-row tooltip-wrapper">
         <label for="fastRate" class="setting-label">Fast rate</label>
         <input type="range" class="setting-slider" id="fastRateSlider"
                min="1.0" max="4.0" step="0.25" />
         <input type="number" class="setting-value" id="fastRate"
                min="1.0" max="4.0" step="0.25" />
         <span class="unit">&times;</span>
+        <span class="tooltip">Playback speed during silence or pauses in the audio.</span>
       </div>
 
       <!-- Silence Threshold -->
-      <div class="row">
+      <div class="row tooltip-wrapper">
         <label for="silenceThreshold" class="row-label">Silence threshold</label>
         <div class="row-control row-control--narrow">
           <input type="number" id="silenceThreshold"
                  min="0.001" max="0.05" step="0.001" />
           <span class="unit">RMS</span>
         </div>
+        <span class="tooltip">Volume level below which audio is considered silent. Increase if pauses aren't detected; decrease if speech triggers fast mode.</span>
       </div>
 
       <!-- Silence Delay -->
-      <div class="row">
+      <div class="row tooltip-wrapper">
         <label for="silenceDelay" class="row-label">Silence delay</label>
         <div class="row-control row-control--narrow">
           <input type="number" id="silenceDelay"
                  min="100" max="2000" step="50" />
           <span class="unit">ms</span>
         </div>
+        <span class="tooltip">How long silence must persist before speeding up. Increase for smoother, less frequent switching.</span>
       </div>
 
       <!-- Overlay toggle -->
-      <div class="row">
+      <div class="row tooltip-wrapper">
         <label for="showOverlay" class="row-label">Show overlay</label>
-        <label class="toggle" title="Show toast on video when fast mode activates">
+        <label class="toggle">
           <input type="checkbox" id="showOverlay" />
           <span class="toggle-track">
             <span class="toggle-thumb"></span>
           </span>
         </label>
+        <span class="tooltip">Show a brief toast over the video when fast mode activates and when the video ends.</span>
       </div>
 
       <!-- System notifications toggle -->
-      <div class="row">
+      <div class="row tooltip-wrapper">
         <label for="showSystemNotifications" class="row-label">End notification</label>
-        <label class="toggle" title="System notification when video ends">
+        <label class="toggle">
           <input type="checkbox" id="showSystemNotifications" />
           <span class="toggle-track">
             <span class="toggle-thumb"></span>
           </span>
         </label>
+        <span class="tooltip">Show a system notification when the video ends with time saved.</span>
       </div>
 
       <!-- Site exclusion -->
-      <div class="row site-exclusion-row">
+      <div class="row site-exclusion-row tooltip-wrapper">
         <span class="row-label site-exclusion-label" id="excludeSiteLabel">Exclude this site</span>
-        <label class="toggle" title="Disable plugin on this domain">
+        <label class="toggle">
           <input type="checkbox" id="excludeSite" />
           <span class="toggle-track toggle-track--danger">
             <span class="toggle-thumb"></span>
           </span>
         </label>
+        <span class="tooltip">Disable the plugin on this site. Speed control won't affect playback here.</span>
       </div>
     </section>
 

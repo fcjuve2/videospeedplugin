@@ -62,8 +62,8 @@ let sessionStartSent  = false; // true after first UPDATE_STATS for this session
 let toastEl    = null;
 let toastTimer = null;
 
-// Command feedback toast (top-right, not over the video)
-let cmdToastEl = null;
+// Central hotkey overlay
+let overlayTimer = null;
 
 // ─── Settings ────────────────────────────────────────────────────────────────
 
@@ -122,7 +122,11 @@ if (typeof chrome !== 'undefined' && chrome.runtime) {
         const video = findPrimaryVideo();
         if (video && !isCurrentSiteExcluded()) handleVideoFound(video);
       }
-      showCommandToast(`⚡ Smart Video Speed: ${msg.enabled ? 'ON' : 'OFF'}`);
+      showHotkeyOverlay(
+        msg.enabled
+          ? { icon: '⚡', title: 'Smart Video Speed', sub: 'Enabled'  }
+          : { icon: '⏸', title: 'Smart Video Speed', sub: 'Disabled' }
+      );
     }
 
     if (msg.type === 'CYCLE_MODE') {
@@ -131,8 +135,12 @@ if (typeof chrome !== 'undefined' && chrome.runtime) {
       settings.fastRate         = msg.fastRate;
       settings.silenceThreshold = msg.silenceThreshold;
       settings.silenceDelay     = msg.silenceDelay;
-      const label = msg.mode.charAt(0).toUpperCase() + msg.mode.slice(1);
-      showCommandToast(`⚡ Mode: ${label}`);
+      const MODE_OVERLAYS = {
+        comfort:  { icon: '🟢', title: 'Comfort Mode',  sub: 'Slow & smooth'    },
+        balanced: { icon: '🔵', title: 'Balanced Mode', sub: 'Default settings' },
+        turbo:    { icon: '🔴', title: 'Turbo Mode',    sub: 'Maximum savings'  },
+      };
+      showHotkeyOverlay(MODE_OVERLAYS[msg.mode] || { icon: '⚡', title: msg.mode, sub: '' });
     }
   });
 }
@@ -415,43 +423,71 @@ function showEndToast(seconds) {
   setTimeout(dismiss, 4000);
 }
 
-// ─── Command feedback toast ───────────────────────────────────────────────────
+// ─── Central hotkey overlay ───────────────────────────────────────────────────
 
 /**
- * Brief top-right toast for keyboard-shortcut feedback.
- * Appears in the page corner — not over the video player.
+ * Large centred overlay for keyboard-shortcut feedback — à la YouTube's
+ * pause animation. Shows icon, title, and subtitle for 1.8 s then fades out.
+ * Repeated calls update content without resetting the animation.
+ *
+ * @param {{ icon: string, title: string, sub: string }} config
  */
-function showCommandToast(text) {
-  if (cmdToastEl) {
-    cmdToastEl.remove();
-    cmdToastEl = null;
+function showHotkeyOverlay({ icon, title, sub }) {
+  let el = document.getElementById('svs-hotkey-overlay');
+
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'svs-hotkey-overlay';
+    el.innerHTML =
+      `<span class="svs-ov-icon"></span>` +
+      `<span class="svs-ov-title"></span>` +
+      `<span class="svs-ov-sub"></span>`;
+    el.style.cssText = `
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%) scale(0.85);
+      width: 240px;
+      padding: 24px 32px;
+      background: rgba(0, 0, 0, 0.75);
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      z-index: 2147483647;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s ease, transform 0.15s ease;
+      backdrop-filter: blur(4px);
+    `;
+    el.querySelector('.svs-ov-icon').style.cssText  = 'font-size:48px;line-height:1;';
+    el.querySelector('.svs-ov-title').style.cssText = 'font-size:22px;font-weight:700;color:#fff;text-align:center;font-family:-apple-system,BlinkMacSystemFont,sans-serif;';
+    el.querySelector('.svs-ov-sub').style.cssText   = 'font-size:14px;color:#aaa;text-align:center;font-family:-apple-system,BlinkMacSystemFont,sans-serif;';
+    document.body.appendChild(el);
   }
 
-  const el = document.createElement('div');
-  el.id = 'svs-cmd-toast';
-  el.style.cssText = `
-    position: fixed; top: 16px; right: 16px; z-index: 2147483647;
-    background: rgba(0,0,0,0.82); color: #fff;
-    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-    font-size: 13px; font-weight: 500;
-    padding: 8px 14px; border-radius: 8px;
-    pointer-events: none;
-    opacity: 1; transition: opacity 0.4s ease;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
-  `;
-  el.textContent = text;
-  document.body.appendChild(el);
-  cmdToastEl = el;
+  // Update content
+  el.querySelector('.svs-ov-icon').textContent  = icon;
+  el.querySelector('.svs-ov-title').textContent = title;
+  el.querySelector('.svs-ov-sub').textContent   = sub;
 
-  setTimeout(() => {
-    if (cmdToastEl === el) {
-      el.style.opacity = '0';
-      setTimeout(() => {
-        if (el.parentNode) el.remove();
-        if (cmdToastEl === el) cmdToastEl = null;
-      }, 400);
-    }
-  }, 2000);
+  // Animate in (or keep visible if already showing)
+  // rAF ensures the browser sees the style change before we transition
+  requestAnimationFrame(() => {
+    el.style.opacity   = '1';
+    el.style.transform = 'translate(-50%, -50%) scale(1)';
+  });
+
+  // Reset the hide timer on every call
+  clearTimeout(overlayTimer);
+  overlayTimer = setTimeout(() => {
+    el.style.opacity   = '0';
+    el.style.transform = 'translate(-50%, -50%) scale(0.9)';
+    el.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+    overlayTimer = setTimeout(() => {
+      el.style.transition = 'opacity 0.15s ease, transform 0.15s ease';
+    }, 300);
+  }, 1800);
 }
 
 // ─── Seek handling ───────────────────────────────────────────────────────────
