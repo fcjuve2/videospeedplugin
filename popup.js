@@ -141,15 +141,22 @@ function renderWeekChart(weeklyStats) {
   if (!svg) return;
 
   // Logical dimensions — SVG scales to 100 % width via CSS
-  const W       = 288; // matches popup inner width (320 - 2×16 px padding)
+  const W       = 276; // chart-card has 6px side padding × 2 = 12px less
   const CHART_H = 44;
   const LABEL_H = 13;
   const GAP     = 2;
   const n       = 7;
-  const barW    = (W - GAP * (n - 1)) / n; // ≈ 39.4 px
+  const barW    = (W - GAP * (n - 1)) / n; // ≈ 37.4 px
 
   const todayStr   = new Date().toISOString().slice(0, 10);
   const DAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+  // Read theme colours from CSS custom properties
+  const rootStyle   = getComputedStyle(document.documentElement);
+  const barToday    = rootStyle.getPropertyValue('--accent-today').trim()  || '#2E75B6';
+  const barOther    = rootStyle.getPropertyValue('--bg-chart-bar').trim()  || '#2a2a42';
+  const labelToday  = rootStyle.getPropertyValue('--accent-blue').trim()   || '#7ab4ff';
+  const labelOther  = rootStyle.getPropertyValue('--text-hint').trim()     || '#555';
 
   // Build full 7-day series (oldest first, fill missing days with 0)
   const days = [];
@@ -170,7 +177,7 @@ function renderWeekChart(weeklyStats) {
     const barH    = day.savedSeconds > 0 ? Math.max(2, frac * CHART_H) : 0;
     const barY    = CHART_H - barH;
     const isToday = day.date === todayStr;
-    const fill    = isToday ? '#2E75B6' : '#2a2a42';
+    const fill    = isToday ? barToday : barOther;
     const cx      = x + barW / 2;
     const secs    = Math.floor(day.savedSeconds);
     const tip     = secs > 0 ? formatTime(secs) : '0s';
@@ -178,7 +185,7 @@ function renderWeekChart(weeklyStats) {
 
     parts.push(
       `<rect x="${x.toFixed(1)}" y="${barY.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" fill="${fill}" rx="2"><title>${day.date}: ${tip}</title></rect>`,
-      `<text x="${cx.toFixed(1)}" y="${(CHART_H + LABEL_H - 1).toFixed(1)}" text-anchor="middle" fill="${isToday ? '#7ab4ff' : '#444'}" font-size="9" font-family="sans-serif">${letter}</text>`,
+      `<text x="${cx.toFixed(1)}" y="${(CHART_H + LABEL_H - 1).toFixed(1)}" text-anchor="middle" fill="${isToday ? labelToday : labelOther}" font-size="9" font-family="sans-serif">${letter}</text>`,
     );
   });
 
@@ -337,12 +344,54 @@ resetBtn.addEventListener('click', () => {
 
 // ── Event handlers — statistics ───────────────────────────────────────────────
 
-resetStatsBtn.addEventListener('click', () => {
-  if (!confirm('Reset all saved-time statistics? This cannot be undone.')) return;
+/** Two-step protection for the reset-statistics button. */
+let _resetStatsPhase = 'idle'; // 'idle' | 'confirming'
+let _resetStatsTimer = null;
 
-  chrome.runtime.sendMessage({ type: 'RESET_STATS' }, () => {
-    renderStats(DEFAULT_STATS);
-  });
+function _resetStatsToIdle() {
+  _resetStatsPhase = 'idle';
+  resetStatsBtn.textContent = 'Reset statistics';
+  resetStatsBtn.classList.remove('confirming', 'cleared');
+}
+
+resetStatsBtn.addEventListener('click', () => {
+  if (_resetStatsPhase === 'idle') {
+    // — First click: enter confirming state
+    _resetStatsPhase = 'confirming';
+    resetStatsBtn.textContent = 'Tap again to confirm';
+    resetStatsBtn.classList.add('confirming');
+
+    _resetStatsTimer = setTimeout(() => {
+      _resetStatsTimer = null;
+      _resetStatsToIdle();
+    }, 3000);
+
+  } else {
+    // — Second click within 3 s: execute reset
+    clearTimeout(_resetStatsTimer);
+    _resetStatsTimer = null;
+    _resetStatsPhase = 'idle';
+
+    resetStatsBtn.textContent = 'Statistics cleared ✓';
+    resetStatsBtn.classList.remove('confirming');
+    resetStatsBtn.classList.add('cleared');
+
+    chrome.runtime.sendMessage({ type: 'RESET_STATS' }, () => {
+      renderStats(DEFAULT_STATS);
+      renderWeekChart([]);
+    });
+
+    setTimeout(_resetStatsToIdle, 500);
+  }
+});
+
+// Cancel confirming state when clicking outside the button
+document.addEventListener('click', (e) => {
+  if (_resetStatsPhase === 'confirming' && e.target !== resetStatsBtn) {
+    clearTimeout(_resetStatsTimer);
+    _resetStatsTimer = null;
+    _resetStatsToIdle();
+  }
 });
 
 // ── React to live changes while popup is open ─────────────────────────────────

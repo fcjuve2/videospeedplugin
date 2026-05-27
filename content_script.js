@@ -62,6 +62,9 @@ let sessionStartSent  = false; // true after first UPDATE_STATS for this session
 let toastEl    = null;
 let toastTimer = null;
 
+// Command feedback toast (top-right, not over the video)
+let cmdToastEl = null;
+
 // ─── Settings ────────────────────────────────────────────────────────────────
 
 function loadSettings(callback) {
@@ -95,6 +98,41 @@ if (typeof chrome !== 'undefined' && chrome.storage) {
     if (isCurrentSiteExcluded()) {
       resetSpeed();
       stopAnalysis();
+    }
+  });
+}
+
+// Listen for messages from background (keyboard commands + stats reset)
+if (typeof chrome !== 'undefined' && chrome.runtime) {
+  chrome.runtime.onMessage.addListener((msg) => {
+
+    if (msg.type === 'RESET_STATS') {
+      sessionSaved     = 0;
+      lastSentSaved    = 0;
+      sessionStartSent = false;
+    }
+
+    if (msg.type === 'TOGGLE_PLUGIN') {
+      settings.enabled = msg.enabled;
+      if (!settings.enabled) {
+        resetSpeed();
+        stopAnalysis();
+      } else {
+        // Re-initialise if a video is present
+        const video = findPrimaryVideo();
+        if (video && !isCurrentSiteExcluded()) handleVideoFound(video);
+      }
+      showCommandToast(`⚡ Smart Video Speed: ${msg.enabled ? 'ON' : 'OFF'}`);
+    }
+
+    if (msg.type === 'CYCLE_MODE') {
+      // Apply new preset values from background
+      settings.activeMode       = msg.mode;
+      settings.fastRate         = msg.fastRate;
+      settings.silenceThreshold = msg.silenceThreshold;
+      settings.silenceDelay     = msg.silenceDelay;
+      const label = msg.mode.charAt(0).toUpperCase() + msg.mode.slice(1);
+      showCommandToast(`⚡ Mode: ${label}`);
     }
   });
 }
@@ -375,6 +413,45 @@ function showEndToast(seconds) {
 
   document.body.appendChild(el);
   setTimeout(dismiss, 4000);
+}
+
+// ─── Command feedback toast ───────────────────────────────────────────────────
+
+/**
+ * Brief top-right toast for keyboard-shortcut feedback.
+ * Appears in the page corner — not over the video player.
+ */
+function showCommandToast(text) {
+  if (cmdToastEl) {
+    cmdToastEl.remove();
+    cmdToastEl = null;
+  }
+
+  const el = document.createElement('div');
+  el.id = 'svs-cmd-toast';
+  el.style.cssText = `
+    position: fixed; top: 16px; right: 16px; z-index: 2147483647;
+    background: rgba(0,0,0,0.82); color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 13px; font-weight: 500;
+    padding: 8px 14px; border-radius: 8px;
+    pointer-events: none;
+    opacity: 1; transition: opacity 0.4s ease;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  `;
+  el.textContent = text;
+  document.body.appendChild(el);
+  cmdToastEl = el;
+
+  setTimeout(() => {
+    if (cmdToastEl === el) {
+      el.style.opacity = '0';
+      setTimeout(() => {
+        if (el.parentNode) el.remove();
+        if (cmdToastEl === el) cmdToastEl = null;
+      }, 400);
+    }
+  }, 2000);
 }
 
 // ─── Seek handling ───────────────────────────────────────────────────────────

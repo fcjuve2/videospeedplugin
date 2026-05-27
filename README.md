@@ -2,7 +2,7 @@
 
 Automatically speeds up silent parts of videos using real-time audio analysis.
 
-![Version](https://img.shields.io/badge/version-1.7.0-blue)
+![Version](https://img.shields.io/badge/version-1.8.0-blue)
 ![Manifest](https://img.shields.io/badge/manifest-v3-green)
 ![License](https://img.shields.io/badge/license-MIT-brightgreen)
 ![Platform](https://img.shields.io/badge/platform-Chrome-yellow)
@@ -58,7 +58,16 @@ as audio resumes, the rate returns to normal — smoothly, without jarring jumps
 - Settings persisted via `chrome.storage.sync` — survive browser restarts and sync across devices
 - Time-saved counter — tracks how many seconds were saved per video, today, and all time
 - Toolbar badge showing accumulated time saved for the current video (updates every 5 seconds)
-- Reset-to-defaults and Reset statistics buttons with confirmation dialogs
+- **Keyboard shortcuts** — `Alt+Shift+S` toggles the extension on/off, `Alt+Shift+M` cycles
+  through acceleration modes (Comfort → Balanced → Turbo); both show a brief page toast confirming
+  the action; shortcuts are reassignable via `chrome://extensions/shortcuts`
+- **Automatic dark / light theme** — all popup colours are CSS custom properties; the popup follows
+  the OS theme via `prefers-color-scheme` without any additional setting
+- **Rounded UI** — all major elements (container, buttons, inputs, chart card, toggles) have
+  consistent rounded corners for a modern look
+- **Two-step reset confirmation** — the Reset statistics button requires a second click within
+  3 seconds to execute; inactivity reverts it automatically, preventing accidental data loss
+- Reset-to-defaults and Reset statistics buttons
 
 ## Screenshots / UI
 
@@ -83,9 +92,9 @@ following elements, top to bottom:
 | Time saved — Current video | Read-only value | Seconds saved since the current page was loaded |
 | Time saved — Today | Read-only value | Cumulative seconds saved since midnight |
 | Time saved — All time | Read-only value | Cumulative seconds saved since installation |
-| Weekly chart | SVG bar chart | 7-day history; today's bar highlighted in blue; hover for exact values |
+| Weekly chart | SVG bar chart (in chart card) | 7-day history; today's bar highlighted in blue; hover for exact values; adapts to dark/light theme |
 | Detailed statistics | Link | Opens the full statistics page in a new tab |
-| Reset statistics | Button | Clears all counters after a confirmation dialog |
+| Reset statistics | Button | Two-step inline confirmation; turns orange on first click, executes on second click within 3 s |
 
 ## Installation
 
@@ -128,7 +137,16 @@ once it is available.
 | End notification | When enabled, a system notification appears when the video ends with >10 s saved. Default: off. |
 | Exclude this site | Disables the extension on the current domain. Toggle it off to re-enable (requires page reload). |
 | Reset to defaults | Restores all settings to their factory values immediately. |
-| Reset statistics | Clears all time-saved counters (per-video, today, all time, weekly, per-site) after confirmation. |
+| Reset statistics | Two-step confirmation: first click shows warning; second click within 3 s clears all counters. |
+
+### Keyboard shortcuts
+
+| Shortcut | Default keys | Action |
+| --- | --- | --- |
+| Toggle on/off | `Alt+Shift+S` | Enables or disables the extension; a brief toast confirms the new state |
+| Cycle mode | `Alt+Shift+M` | Cycles through Comfort → Balanced → Turbo → Comfort; a brief toast shows the new mode |
+
+Shortcuts can be reassigned at `chrome://extensions/shortcuts`.
 
 Settings take effect in the active tab within milliseconds via `chrome.storage.onChanged`.
 

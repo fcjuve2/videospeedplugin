@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-05-27
+
+### Added
+
+- **Keyboard shortcuts** — two hotkeys configurable via `chrome://extensions/shortcuts`:
+  - `Alt+Shift+S` — toggle the extension on / off; a top-right page toast confirms the new state.
+  - `Alt+Shift+M` — cycle the acceleration mode (Comfort → Balanced → Turbo → Comfort); a top-right
+    page toast shows the new mode name. The preset settings (fast rate, silence threshold, silence
+    delay) are applied immediately.
+  - Both commands are implemented via the Chrome Commands API (`chrome.commands.onCommand`) in the
+    background service worker and forwarded to the active tab's content script.
+  - A new `showCommandToast` function in `content_script.js` renders a dismissing overlay in the
+    top-right corner of the page (not over the video) for 2 seconds.
+- **Automatic dark / light theme** — the popup now responds to `prefers-color-scheme` without any
+  user setting. All colours are defined as CSS custom properties on `:root` and overridden in an
+  `@media (prefers-color-scheme: light)` block. Dark theme is identical to the previous appearance.
+- **Rounded corners** — all major popup elements now have rounded corners:
+  - Container: `12px`; mode indicator / mode buttons: `8px`; numeric inputs: `6px`; buttons: `8px`;
+    toggle tracks: `999px` (pill); new chart card: `10px`.
+- **Chart card** — the weekly bar chart is now wrapped in a `div.chart-card` with a distinct
+  background, rounded corners, and inner padding; bar and label colours are read from CSS custom
+  properties so they adapt to the active theme.
+- **Two-step reset confirmation** — the *Reset statistics* button now uses an inline two-step flow
+  instead of a `confirm()` dialog: first click turns the button orange and shows "Tap again to
+  confirm"; a second click within 3 seconds executes the reset and briefly shows "Statistics
+  cleared ✓" in green; inactivity or a click elsewhere cancels and reverts the button.
+- `RESET_STATS` message from the background now also notifies the active tab's content script so
+  the current-session counter (`sessionSaved`) is reset to zero immediately without a page reload.
+
+### Changed
+
+- Popup `body` minimum height raised to `780 px` with `overflow: hidden` to avoid the browser
+  adding a scrollbar on typical screen sizes.
+- Container padding tightened to `14px 16px` (uniform) to reduce vertical space consumption.
+- `manifest.json` version bumped to `1.8.0`.
+
 ## [1.7.0] - 2026-03-13
 
 ### Added

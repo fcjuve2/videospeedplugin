@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Smart Video Speed",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "Automatically speeds up silent parts of videos using real-time audio analysis.",
   "permissions": [
     "storage",
@@ -22,6 +22,16 @@
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
+    }
+  },
+  "commands": {
+    "toggle-plugin": {
+      "suggested_key": { "default": "Alt+Shift+S" },
+      "description": "Toggle Smart Video Speed on/off"
+    },
+    "cycle-mode": {
+      "suggested_key": { "default": "Alt+Shift+M" },
+      "description": "Cycle through speed modes (Comfort → Balanced → Turbo)"
     }
   },
   "content_scripts": [

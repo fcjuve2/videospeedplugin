@@ -16,6 +16,14 @@
 
 const DEFAULT_STATS = { session: 0, today: 0, total: 0, todayDate: '' };
 
+const MODE_CYCLE = ['comfort', 'balanced', 'turbo'];
+
+const PRESETS = {
+  comfort:  { fastRate: 1.5,  silenceThreshold: 0.005, silenceDelay: 1000 },
+  balanced: { fastRate: 1.75, silenceThreshold: 0.01,  silenceDelay: 500  },
+  turbo:    { fastRate: 2.25, silenceThreshold: 0.02,  silenceDelay: 200  },
+};
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function todayString() {
@@ -153,7 +161,56 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     const empty = { ...DEFAULT_STATS, todayDate: todayString() };
     chrome.storage.local.set({ savedTime: empty, weeklyStats: [], domainStats: {} });
     chrome.action.setBadgeText({ text: '' });
+
+    // Reset session counter in the content script of the active tab
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0]?.id) {
+        chrome.tabs.sendMessage(tabs[0].id, { type: 'RESET_STATS' }).catch(() => {});
+      }
+    });
+
     sendResponse({ ok: true });
     return true;
+  }
+});
+
+// ─── Keyboard shortcut commands ───────────────────────────────────────────────
+
+chrome.commands.onCommand.addListener((command) => {
+
+  if (command === 'toggle-plugin') {
+    chrome.storage.sync.get({ enabled: true }, ({ enabled }) => {
+      const newEnabled = !enabled;
+      chrome.storage.sync.set({ enabled: newEnabled });
+
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0]?.id) {
+          chrome.tabs.sendMessage(tabs[0].id, {
+            type: 'TOGGLE_PLUGIN',
+            enabled: newEnabled,
+          }).catch(() => {});
+        }
+      });
+    });
+  }
+
+  if (command === 'cycle-mode') {
+    chrome.storage.sync.get({ activeMode: 'balanced' }, ({ activeMode }) => {
+      const idx      = MODE_CYCLE.indexOf(activeMode);
+      const nextMode = MODE_CYCLE[(idx + 1) % MODE_CYCLE.length];
+      const preset   = PRESETS[nextMode];
+
+      chrome.storage.sync.set({ activeMode: nextMode, ...preset });
+
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0]?.id) {
+          chrome.tabs.sendMessage(tabs[0].id, {
+            type: 'CYCLE_MODE',
+            mode: nextMode,
+            ...preset,
+          }).catch(() => {});
+        }
+      });
+    });
   }
 });
