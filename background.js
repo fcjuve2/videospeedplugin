@@ -24,6 +24,12 @@ const PRESETS = {
   turbo:    { fastRate: 2.25, silenceThreshold: 0.02,  silenceDelay: 200  },
 };
 
+const DEFAULT_MODE_SETTINGS = {
+  comfort:  { normalRate: 1.0, fastRate: 1.5,  silenceThreshold: 0.005, silenceDelay: 1000 },
+  balanced: { normalRate: 1.0, fastRate: 1.75, silenceThreshold: 0.01,  silenceDelay: 500  },
+  turbo:    { normalRate: 1.0, fastRate: 2.25, silenceThreshold: 0.02,  silenceDelay: 200  },
+};
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function todayString() {
@@ -52,6 +58,20 @@ function formatBadge(seconds) {
   return `${m}:${rem.toString().padStart(2, '0')}`;
 }
 
+// ─── Icon ────────────────────────────────────────────────────────────────────
+
+function updateIcon(enabled) {
+  const suffix = enabled ? '' : '_disabled';
+  chrome.action.setIcon({
+    path: {
+      '16':  `icons/icon16${suffix}.png`,
+      '32':  `icons/icon32${suffix}.png`,
+      '48':  `icons/icon48${suffix}.png`,
+      '128': `icons/icon128${suffix}.png`,
+    }
+  });
+}
+
 // ─── Badge ───────────────────────────────────────────────────────────────────
 
 function updateBadge(sessionSaved, isFast) {
@@ -77,6 +97,15 @@ function mergeWeeklyStats(entries, todayStr, todaySeconds) {
   list.sort((a, b) => a.date.localeCompare(b.date));
   return list.length > 7 ? list.slice(list.length - 7) : list;
 }
+
+// ─── Startup init ─────────────────────────────────────────────────────────────
+
+chrome.storage.sync.get({ enabled: true, modeSettings: null }, ({ enabled, modeSettings }) => {
+  updateIcon(enabled);
+  if (!modeSettings) {
+    chrome.storage.sync.set({ modeSettings: DEFAULT_MODE_SETTINGS });
+  }
+});
 
 // ─── Message handler ─────────────────────────────────────────────────────────
 
@@ -182,6 +211,7 @@ chrome.commands.onCommand.addListener((command) => {
     chrome.storage.sync.get({ enabled: true }, ({ enabled }) => {
       const newEnabled = !enabled;
       chrome.storage.sync.set({ enabled: newEnabled });
+      updateIcon(newEnabled);
 
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         if (tabs[0]?.id) {
@@ -195,19 +225,28 @@ chrome.commands.onCommand.addListener((command) => {
   }
 
   if (command === 'cycle-mode') {
-    chrome.storage.sync.get({ activeMode: 'balanced' }, ({ activeMode }) => {
+    chrome.storage.sync.get({ activeMode: 'balanced', modeSettings: DEFAULT_MODE_SETTINGS }, ({ activeMode, modeSettings }) => {
       const idx      = MODE_CYCLE.indexOf(activeMode);
       const nextMode = MODE_CYCLE[(idx + 1) % MODE_CYCLE.length];
-      const preset   = PRESETS[nextMode];
+      const preset   = modeSettings[nextMode] ?? DEFAULT_MODE_SETTINGS[nextMode];
 
-      chrome.storage.sync.set({ activeMode: nextMode, ...preset });
+      chrome.storage.sync.set({
+        activeMode:       nextMode,
+        normalRate:       preset.normalRate ?? 1.0,
+        fastRate:         preset.fastRate,
+        silenceThreshold: preset.silenceThreshold,
+        silenceDelay:     preset.silenceDelay,
+      });
 
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         if (tabs[0]?.id) {
           chrome.tabs.sendMessage(tabs[0].id, {
-            type: 'CYCLE_MODE',
-            mode: nextMode,
-            ...preset,
+            type:             'CYCLE_MODE',
+            mode:             nextMode,
+            normalRate:       preset.normalRate ?? 1.0,
+            fastRate:         preset.fastRate,
+            silenceThreshold: preset.silenceThreshold,
+            silenceDelay:     preset.silenceDelay,
           }).catch(() => {});
         }
       });

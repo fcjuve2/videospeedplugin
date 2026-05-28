@@ -7,6 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-05-28
+
+### Added
+
+- **Disabled-state toolbar icon** — when the plugin is turned off (via the popup toggle or the
+  `Alt+Shift+S` hotkey), the browser toolbar icon switches to a greyscale `_disabled` variant
+  (`icon16_disabled.png` / `icon32_disabled.png` / `icon48_disabled.png` / `icon128_disabled.png`).
+  The icon is updated via `chrome.action.setIcon()` in `background.js`. Three callsites are covered:
+  - **Service-worker startup** — a module-level `chrome.storage.sync.get` runs every time the
+    service worker activates (install, browser restart, wake-up) and sets the correct icon from
+    the stored `enabled` flag, so the icon always matches state after a browser restart.
+  - **`Alt+Shift+S` hotkey** — the `toggle-plugin` command handler calls `updateIcon(newEnabled)`
+    immediately after writing the new flag to storage.
+  - **Popup toggle** — the existing `enabledToggle` `change` listener was already writing to
+    storage and sending a `TOGGLE_PLUGIN` message to the content script; no additional callsite
+    was needed since the background's storage-change watcher is not involved — the icon update
+    happens inline in the toggle handler.
+
+- **Per-mode saved settings** — each acceleration mode (Comfort / Balanced / Turbo) now
+  independently remembers the last values its sliders were set to. A new `modeSettings` key is
+  written to `chrome.storage.sync`:
+  ```
+  modeSettings: {
+    comfort:  { normalRate, fastRate, silenceThreshold, silenceDelay },
+    balanced: { … },
+    turbo:    { … }
+  }
+  ```
+  Factory defaults match the previous hardcoded `PRESETS`. On first run (key absent) the
+  background service worker initialises `modeSettings` to those factory defaults.
+
+### Changed
+
+- **`popup.js` — slider persistence** — every slider `input` / `change` event now calls
+  `saveModeSettings()` in addition to `saveSettings()`. `saveModeSettings` is debounced at 500 ms
+  and writes the four slider values for the active mode into `modeSettings[activeMode]` in
+  `chrome.storage.sync`.
+- **`popup.js` — mode button click** — clicking a mode button now loads `modeSettings[mode]`
+  from the in-memory state and applies all four parameters (`normalRate`, `fastRate`,
+  `silenceThreshold`, `silenceDelay`) to the `settings` object before saving and re-rendering.
+  This replaces the previous `applyPreset()` logic that always loaded from hardcoded constants.
+- **`popup.js` — Reset to defaults** — the reset button no longer resets `enabled`,
+  `showOverlay`, or other non-slider settings. It now exclusively resets all three
+  `modeSettings` entries to factory defaults, applies the current mode's new defaults to the
+  sliders, and saves. User preferences unrelated to speed parameters are preserved.
+- **`popup.js` — removed modified indicator** — the `•` prefix on mode buttons (previously shown
+  when slider values diverged from the hardcoded preset) has been removed. With per-mode memory,
+  user-changed values *are* the preset for that mode, so the indicator is no longer meaningful.
+  `isPresetModified()` and `applyPreset()` have been deleted; `PRESETS` has been replaced by
+  `DEFAULT_MODE_SETTINGS` (which also includes `normalRate`).
+- **`background.js` — `cycle-mode` command** — the `Alt+Shift+M` hotkey handler now reads
+  `modeSettings[nextMode]` from `chrome.storage.sync` instead of the hardcoded `PRESETS` object.
+  The resolved values (including `normalRate`) are written back to flat sync storage and forwarded
+  to the content script via the `CYCLE_MODE` message.
+- **`content_script.js` — `CYCLE_MODE` handler** — now applies `msg.normalRate` when present, so
+  hotkey-driven mode cycles respect a per-mode customised normal playback rate.
+- `manifest.json` version bumped to `1.10.0`.
+
 ## [1.9.0] - 2026-05-27
 
 ### Added

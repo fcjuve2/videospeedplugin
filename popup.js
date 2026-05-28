@@ -16,10 +16,10 @@ const DEFAULTS = {
   excludedDomains: [],
 };
 
-const PRESETS = {
-  comfort:  { fastRate: 1.5,  silenceThreshold: 0.005, silenceDelay: 1000 },
-  balanced: { fastRate: 1.75, silenceThreshold: 0.01,  silenceDelay: 500  },
-  turbo:    { fastRate: 2.25, silenceThreshold: 0.02,  silenceDelay: 200  },
+const DEFAULT_MODE_SETTINGS = {
+  comfort:  { normalRate: 1.0, fastRate: 1.5,  silenceThreshold: 0.005, silenceDelay: 1000 },
+  balanced: { normalRate: 1.0, fastRate: 1.75, silenceThreshold: 0.01,  silenceDelay: 500  },
+  turbo:    { normalRate: 1.0, fastRate: 2.25, silenceThreshold: 0.02,  silenceDelay: 200  },
 };
 
 const DEFAULT_STATS = { session: 0, today: 0, total: 0, todayDate: '' };
@@ -51,6 +51,12 @@ const modeBtns           = document.querySelectorAll('.mode-btn');
 
 let settings = { ...DEFAULTS };
 let currentDomain = '';
+let modeSettings = {
+  comfort:  { ...DEFAULT_MODE_SETTINGS.comfort  },
+  balanced: { ...DEFAULT_MODE_SETTINGS.balanced },
+  turbo:    { ...DEFAULT_MODE_SETTINGS.turbo    },
+};
+let modeSaveTimer = null;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -61,6 +67,19 @@ function clamp(value, min, max) {
 function round(value, decimals) {
   const factor = Math.pow(10, decimals);
   return Math.round(value * factor) / factor;
+}
+
+function saveModeSettings() {
+  clearTimeout(modeSaveTimer);
+  modeSaveTimer = setTimeout(() => {
+    modeSettings[settings.activeMode] = {
+      normalRate:       settings.normalRate,
+      fastRate:         settings.fastRate,
+      silenceThreshold: settings.silenceThreshold,
+      silenceDelay:     settings.silenceDelay,
+    };
+    chrome.storage.sync.set({ modeSettings });
+  }, 500);
 }
 
 /**
@@ -141,37 +160,13 @@ const MODE_LABELS = {
   turbo:    '🔴 Turbo',
 };
 
-function isPresetModified(mode) {
-  const preset = PRESETS[mode];
-  if (!preset) return false;
-  return (
-    round(settings.fastRate, 2)          !== preset.fastRate          ||
-    round(settings.silenceThreshold, 3)  !== preset.silenceThreshold  ||
-    Math.round(settings.silenceDelay)    !== preset.silenceDelay
-  );
-}
-
 function renderModeBtns() {
   const active = settings.activeMode;
   modeBtns.forEach((btn) => {
     const mode = btn.dataset.mode;
-    const isActive = mode === active;
-    btn.classList.toggle('active', isActive);
-    if (isActive && isPresetModified(mode)) {
-      btn.textContent = '• ' + MODE_LABELS[mode];
-    } else {
-      btn.textContent = MODE_LABELS[mode];
-    }
+    btn.classList.toggle('active', mode === active);
+    btn.textContent = MODE_LABELS[mode];
   });
-}
-
-function applyPreset(mode) {
-  const preset = PRESETS[mode];
-  if (!preset) return;
-  settings.fastRate          = preset.fastRate;
-  settings.silenceThreshold  = preset.silenceThreshold;
-  settings.silenceDelay      = preset.silenceDelay;
-  settings.activeMode        = mode;
 }
 
 // ── Persistence ───────────────────────────────────────────────────────────────
@@ -193,6 +188,7 @@ normalRateSlider.addEventListener('input', () => {
   normalRateInput.value = v;
   settings.normalRate   = v;
   saveSettings();
+  saveModeSettings();
 });
 
 normalRateInput.addEventListener('change', () => {
@@ -201,6 +197,7 @@ normalRateInput.addEventListener('change', () => {
   normalRateSlider.value = v;
   settings.normalRate    = v;
   saveSettings();
+  saveModeSettings();
 });
 
 fastRateSlider.addEventListener('input', () => {
@@ -208,7 +205,7 @@ fastRateSlider.addEventListener('input', () => {
   fastRateInput.value = v;
   settings.fastRate   = v;
   saveSettings();
-  renderModeBtns();
+  saveModeSettings();
 });
 
 fastRateInput.addEventListener('change', () => {
@@ -217,7 +214,7 @@ fastRateInput.addEventListener('change', () => {
   fastRateSlider.value = v;
   settings.fastRate    = v;
   saveSettings();
-  renderModeBtns();
+  saveModeSettings();
 });
 
 silenceThreshInput.addEventListener('change', () => {
@@ -225,7 +222,7 @@ silenceThreshInput.addEventListener('change', () => {
   silenceThreshInput.value  = v;
   settings.silenceThreshold = v;
   saveSettings();
-  renderModeBtns();
+  saveModeSettings();
 });
 
 silenceDelayInput.addEventListener('change', () => {
@@ -233,7 +230,7 @@ silenceDelayInput.addEventListener('change', () => {
   silenceDelayInput.value = v;
   settings.silenceDelay   = v;
   saveSettings();
-  renderModeBtns();
+  saveModeSettings();
 });
 
 showOverlayToggle.addEventListener('change', () => {
@@ -262,20 +259,30 @@ excludeSiteToggle.addEventListener('change', () => {
 modeBtns.forEach((btn) => {
   btn.addEventListener('click', () => {
     const mode = btn.dataset.mode;
-    const isActive = mode === settings.activeMode;
-    // If already active and modified, restore preset; otherwise switch to mode.
-    if (isActive && isPresetModified(mode)) {
-      applyPreset(mode);
-    } else if (!isActive) {
-      applyPreset(mode);
-    }
+    if (mode === settings.activeMode) return;
+    const ms = modeSettings[mode];
+    settings.normalRate        = ms.normalRate;
+    settings.fastRate          = ms.fastRate;
+    settings.silenceThreshold  = ms.silenceThreshold;
+    settings.silenceDelay      = ms.silenceDelay;
+    settings.activeMode        = mode;
     saveSettings();
     renderSettings();
   });
 });
 
 resetBtn.addEventListener('click', () => {
-  settings = { ...DEFAULTS };
+  modeSettings = {
+    comfort:  { ...DEFAULT_MODE_SETTINGS.comfort  },
+    balanced: { ...DEFAULT_MODE_SETTINGS.balanced },
+    turbo:    { ...DEFAULT_MODE_SETTINGS.turbo    },
+  };
+  chrome.storage.sync.set({ modeSettings });
+  const ms = DEFAULT_MODE_SETTINGS[settings.activeMode];
+  settings.normalRate        = ms.normalRate;
+  settings.fastRate          = ms.fastRate;
+  settings.silenceThreshold  = ms.silenceThreshold;
+  settings.silenceDelay      = ms.silenceDelay;
   saveSettings();
   renderSettings();
 });
@@ -313,9 +320,19 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
   }
 });
 
-chrome.storage.sync.get(DEFAULTS, (stored) => {
+chrome.storage.sync.get({ ...DEFAULTS, modeSettings: null }, (stored) => {
   settings = { ...DEFAULTS, ...stored };
-  if (!PRESETS[settings.activeMode]) settings.activeMode = 'balanced';
+  if (!DEFAULT_MODE_SETTINGS[settings.activeMode]) settings.activeMode = 'balanced';
+  if (stored.modeSettings) {
+    modeSettings = stored.modeSettings;
+  } else {
+    modeSettings = {
+      comfort:  { ...DEFAULT_MODE_SETTINGS.comfort  },
+      balanced: { ...DEFAULT_MODE_SETTINGS.balanced },
+      turbo:    { ...DEFAULT_MODE_SETTINGS.turbo    },
+    };
+    chrome.storage.sync.set({ modeSettings });
+  }
   renderSettings();
 });
 

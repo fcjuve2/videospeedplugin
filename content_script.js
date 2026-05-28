@@ -135,6 +135,7 @@ if (typeof chrome !== 'undefined' && chrome.runtime) {
       settings.fastRate         = msg.fastRate;
       settings.silenceThreshold = msg.silenceThreshold;
       settings.silenceDelay     = msg.silenceDelay;
+      if (msg.normalRate !== undefined) settings.normalRate = msg.normalRate;
       const MODE_OVERLAYS = {
         comfort:  { icon: '🟢', title: 'Comfort Mode',  sub: 'Slow & smooth'    },
         balanced: { icon: '🔵', title: 'Balanced Mode', sub: 'Default settings' },
